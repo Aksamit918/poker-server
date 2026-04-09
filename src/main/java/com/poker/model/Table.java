@@ -564,7 +564,11 @@ public class Table {
                 endBettingRound();
             }
 
-            startTimer();
+            if (state != TableStates.WAITING_FOR_PLAYERS && state != TableStates.SHOWDOWN) {
+                startTimer();
+            } else {
+                stopTimer();
+            }
         }
     }
 
