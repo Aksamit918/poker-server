@@ -593,6 +593,9 @@ public class Table {
     public int getMaxBuyIn() {
         return maxBuyIn;
     }
+    public int getCurrentMaxBet() {
+        return currentMaxBet;
+    }
     public TableStates getState() {
         return state;
     }

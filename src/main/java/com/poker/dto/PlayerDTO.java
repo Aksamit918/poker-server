@@ -24,13 +24,19 @@ public class PlayerDTO {
     @JsonProperty("is_active")
     private boolean isActive;
 
-    public static PlayerDTO fromPlayer(Player player) {
+    @JsonProperty("amount_to_call")
+    private int amountToCall;
+
+    public static PlayerDTO fromPlayer(Player player, int currentMaxBet) {
+        int toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
+
         return new PlayerDTO(
                 player.getUserId(),
                 player.getName(),
                 player.getChips().get(),
                 player.getStatus().name(),
-                player.getStatus() != PlayerStatus.FOLDED
+                player.getStatus() != PlayerStatus.FOLDED,
+                toCall
         );
     }
 }

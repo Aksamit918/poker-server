@@ -60,6 +60,10 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
+        if (table.findPlayerById(request.getUserId()) == null) {
+            return TableDetailsDTO.createTableDetailsDTO(table);
+        }
+
         int minBuyIn = table.getMinBuyIn();
         int maxBuyIn = table.getMaxBuyIn();
         int userBuyIn = request.getChips();

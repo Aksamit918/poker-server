@@ -31,6 +31,7 @@ public class TableDetailsDTO {
 
     public static TableDetailsDTO createTableDetailsDTO(Table table) {
         int pot = table.getPot();
+        int currentMax = table.getCurrentMaxBet();
         String state = table.getState().name();
 
         int dealerIdx = table.getDealerIdx();
@@ -41,7 +42,7 @@ public class TableDetailsDTO {
                 .toList();
 
         List<PlayerDTO> playerDTOs = table.getPlayers().stream()
-                .map(PlayerDTO::fromPlayer)
+                .map(p -> PlayerDTO.fromPlayer(p, currentMax))
                 .toList();
 
         return new TableDetailsDTO(pot, dealerIdx, activePlayerIdx, cardStrings, playerDTOs, state);
