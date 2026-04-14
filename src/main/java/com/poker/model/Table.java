@@ -260,53 +260,67 @@ public class Table {
             return;
         }
 
-        switch (this.state) {
-            case PRE_FLOP -> {
-                setTableState(TableStates.FLOP);
-                dealFlop();
-            }
-            case FLOP ->  {
-                setTableState(TableStates.TURN);
-                dealTurn();
-            }
-            case TURN ->  {
-                setTableState(TableStates.RIVER);
-                dealRiver();
-            }
-            case RIVER ->  {
-                setTableState(TableStates.SHOWDOWN);
-                distributePot();
-                pot.set(0);
-            }
-        }
+        stopTimer();
 
-        if (this.state != TableStates.SHOWDOWN) {
-            this.currentMaxBet = 0;
+        scheduler.schedule(() -> {
+            List<Player> survivorsCheck = players.stream()
+                    .filter(Player::isInHand)
+                    .toList();
 
-            long playersWhoCanBet = players.stream()
-                    .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
-                            p.getStatus() != PlayerStatus.ALL_IN &&
-                            p.getStatus() != PlayerStatus.WAITING)
-                    .count();
+            if (survivorsCheck.size() < 2 || state == TableStates.WAITING_FOR_PLAYERS) {
+                return;
+            }
 
-            if (playersWhoCanBet < 2) {
-                endBettingRound();
-            } else {
-                for (Player p : players) {
-                    p.setRoundContribution(0);
-                    if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
-                        p.setStatus(PlayerStatus.ACTIVE);
+            synchronized (lock) {
+                switch (this.state) {
+                    case PRE_FLOP -> {
+                        setTableState(TableStates.FLOP);
+                        dealFlop();
+                    }
+                    case FLOP ->  {
+                        setTableState(TableStates.TURN);
+                        dealTurn();
+                    }
+                    case TURN ->  {
+                        setTableState(TableStates.RIVER);
+                        dealRiver();
+                    }
+                    case RIVER ->  {
+                        setTableState(TableStates.SHOWDOWN);
+                        distributePot();
+                        pot.set(0);
                     }
                 }
-                this.activePlayerIdx = dealerIdx;
-                advanceTurn();
-                startTimer();
-            }
 
-        } else {
-            cleanupTable();
-            scheduleNextHand();
-        }
+                if (this.state != TableStates.SHOWDOWN) {
+                    this.currentMaxBet = 0;
+
+                    long playersWhoCanBet = players.stream()
+                            .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
+                                    p.getStatus() != PlayerStatus.ALL_IN &&
+                                    p.getStatus() != PlayerStatus.WAITING)
+                            .count();
+
+                    if (playersWhoCanBet < 2) {
+                        endBettingRound();
+                    } else {
+                        for (Player p : players) {
+                            p.setRoundContribution(0);
+                            if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                                p.setStatus(PlayerStatus.ACTIVE);
+                            }
+                        }
+                        this.activePlayerIdx = dealerIdx;
+                        advanceTurn();
+                        startTimer();
+                    }
+
+                } else {
+                    cleanupTable();
+                    scheduleNextHand();
+                }
+            }
+        }, 1500, TimeUnit.MILLISECONDS);
     }
     private void finishHandPrematurely() {
         stopTimer();
