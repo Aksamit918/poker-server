@@ -263,15 +263,15 @@ public class Table {
         stopTimer();
 
         scheduler.schedule(() -> {
-            List<Player> survivorsCheck = players.stream()
-                    .filter(Player::isInHand)
-                    .toList();
-
-            if (survivorsCheck.size() < 2 || state == TableStates.WAITING_FOR_PLAYERS) {
-                return;
-            }
-
             synchronized (lock) {
+                List<Player> survivorsCheck = players.stream()
+                        .filter(Player::isInHand)
+                        .toList();
+
+                if (survivorsCheck.size() < 2 || state == TableStates.WAITING_FOR_PLAYERS) {
+                    return;
+                }
+
                 switch (this.state) {
                     case PRE_FLOP -> {
                         setTableState(TableStates.FLOP);
