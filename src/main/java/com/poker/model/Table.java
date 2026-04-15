@@ -191,15 +191,29 @@ public class Table {
         player.setStatus(PlayerStatus.CHECKED);
     }
     private void processAllIn(Player player) {
-        int allInAmount = player.getChips().get();
+        int chips = player.getChips().get();
+        int currentContribution = player.getRoundContribution();
 
-        int actualPaid = player.bet(allInAmount);
+        int maxOpponentCanCommit = players.stream()
+                .filter(p -> p != player && p.canAct())
+                .mapToInt(p -> p.getChips().get() + p.getRoundContribution())
+                .max()
+                .orElse(0);
 
+        int effectiveTotalBet = Math.min(currentContribution + chips, Math.max(currentMaxBet, maxOpponentCanCommit));
+
+        int amountToBet = effectiveTotalBet - currentContribution;
+
+        int actualPaid = player.bet(amountToBet);
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
 
-        player.setStatus(PlayerStatus.ALL_IN);
+        if (player.getChips().get() == 0) {
+            player.setStatus(PlayerStatus.ALL_IN);
+        } else {
+            player.setStatus(PlayerStatus.RAISED);
+        }
 
         if (player.getRoundContribution() > currentMaxBet) {
             this.currentMaxBet = player.getRoundContribution();
@@ -638,7 +652,6 @@ public class Table {
             return List.copyOf(players); // Return a safe snapshot
         }
     }
-
     public Optional<Player> findPlayerById(String userId) {
         synchronized (lock) {
             return players.stream()
