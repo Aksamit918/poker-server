@@ -1,10 +1,13 @@
 package com.poker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.poker.model.Card;
 import com.poker.model.Player;
 import com.poker.model.PlayerStatus; // Убедись, что импортировал статус
 import lombok.AllArgsConstructor;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -18,6 +21,9 @@ public class PlayerDTO {
     @JsonProperty("chips")
     private int chips;
 
+    @JsonProperty("cards")
+    private List<String> cards;
+
     @JsonProperty("status")
     private String status;
 
@@ -30,10 +36,15 @@ public class PlayerDTO {
     public static PlayerDTO fromPlayer(Player player, int currentMaxBet) {
         int toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
 
+        List<String> cards = player.getHand().stream()
+                .map(Card::getShortName)
+                .toList();
+
         return new PlayerDTO(
                 player.getUserId(),
                 player.getName(),
                 player.getChips().get(),
+                cards,
                 player.getStatus().name(),
                 player.getStatus() != PlayerStatus.FOLDED,
                 toCall
