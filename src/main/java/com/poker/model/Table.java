@@ -96,7 +96,8 @@ public class Table {
     private void scheduleNextHand() {
         scheduler.schedule(() -> {
             synchronized (lock) {
-                if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+                if (players.size() >= MIN_PLAYERS && (state == TableStates.WAITING_FOR_PLAYERS ||
+                        state == TableStates.SHOWDOWN)) {
                     cleanupTable();
                     startNewHand();
                 }
@@ -559,7 +560,6 @@ public class Table {
         this.deck = new Deck();
         this.state = TableStates.WAITING_FOR_PLAYERS;
         this.activePlayerIdx = -1;
-        this.dealerIdx = -1;
         this.currentMaxBet = 0;
     }
 
