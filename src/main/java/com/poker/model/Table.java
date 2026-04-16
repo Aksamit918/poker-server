@@ -97,6 +97,7 @@ public class Table {
         scheduler.schedule(() -> {
             synchronized (lock) {
                 if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+                    cleanupTable();
                     startNewHand();
                 }
             }
@@ -330,11 +331,10 @@ public class Table {
                     }
 
                 } else {
-                    cleanupTable();
                     scheduleNextHand();
                 }
             }
-        }, 1500, TimeUnit.MILLISECONDS);
+        }, 5, TimeUnit.SECONDS);
     }
     private void finishHandPrematurely() {
         stopTimer();
