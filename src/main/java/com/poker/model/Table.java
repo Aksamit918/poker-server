@@ -349,7 +349,6 @@ public class Table {
             pot.set(0);
         }
 
-        cleanupTable();
         scheduleNextHand();
     }
 

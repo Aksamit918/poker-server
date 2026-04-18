@@ -7,6 +7,8 @@ import com.poker.model.Player;
 import com.poker.model.PlayerAction;
 import com.poker.model.Table;
 import com.poker.model.TableStates;
+import com.poker.persistence.entity.Account;
+import com.poker.service.AccountService;
 import com.poker.service.TableManager;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
@@ -26,10 +28,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequestMapping("/api/tables")
 public class TableController {
     private final TableManager tableManager;
+    private final AccountService accountService;
 
     @Autowired
-    public TableController(TableManager tableManager) {
+    public TableController(TableManager tableManager, AccountService accountService) {
         this.tableManager = tableManager;
+        this.accountService = accountService;
     }
 
     @GetMapping
@@ -60,30 +64,23 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        if (table.findPlayerById(request.getUserId()) == null) {
-            return TableDetailsDTO.createTableDetailsDTO(table);
-        }
+        Account account = accountService.findById(Long.parseLong(request.getUserId()));
+        long realWalletBalance = account.getBalance();
 
-        int minBuyIn = table.getMinBuyIn();
-        int maxBuyIn = table.getMaxBuyIn();
         int userBuyIn = request.getChips();
-        if (userBuyIn < minBuyIn) {
-            throw new ChipAmountException("Insufficient buy-in. Minimum required: " + minBuyIn);
-        } else if (userBuyIn > maxBuyIn) {
-            throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + maxBuyIn);
+        if (userBuyIn < table.getMinBuyIn() || userBuyIn > table.getMaxBuyIn()) {
+            throw new ChipAmountException("Invalid buy-in amount");
         }
 
-        if (request.getWalletBalance() < request.getChips()) {
-            throw new ChipAmountException("Not enough money in wallet for this buy-in");
+        if (realWalletBalance < userBuyIn) {
+            throw new ChipAmountException("Not enough money in wallet");
         }
-
-        int remainingWallet = request.getWalletBalance() - request.getChips();
 
         Player newPlayer = new Player(
-                request.getUserId(),
-                request.getName(),
-                new AtomicInteger(remainingWallet),
-                new AtomicInteger(request.getChips())
+                String.valueOf(account.getId()),
+                account.getNickname(),
+                new AtomicInteger((int) (realWalletBalance - userBuyIn)),
+                new AtomicInteger(userBuyIn)
         );
 
         table.joinTable(newPlayer);
