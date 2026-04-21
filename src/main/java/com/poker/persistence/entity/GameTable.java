@@ -32,6 +32,7 @@ public class GameTable {
     @Column(name = "is_private", nullable = false)
     private boolean isPrivate;
 
+    @Column(name = "passcode", length = 50)
     private String passcode;
 
     @Column(name = "is_system", nullable = false)
