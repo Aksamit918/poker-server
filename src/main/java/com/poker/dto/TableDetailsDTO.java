@@ -12,7 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 public class TableDetailsDTO {
     @JsonProperty("pot")
-    private int pot;
+    private long pot;
 
     @JsonProperty("dealer_seat")
     private int dealerIdx;
@@ -30,8 +30,8 @@ public class TableDetailsDTO {
     private String state;
 
     public static TableDetailsDTO createTableDetailsDTO(Table table) {
-        int pot = table.getPot();
-        int currentMax = table.getCurrentMaxBet();
+        long pot = table.getPot();
+        long currentMax = table.getCurrentMaxBet();
         String state = table.getState().name();
 
         int dealerIdx = table.getDealerIdx();

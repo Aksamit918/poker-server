@@ -5,19 +5,19 @@ import com.poker.exception.ChipAmountException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Player {
     private final String userId;
     private String name;
     private volatile PlayerStatus status = PlayerStatus.WAITING;
-    private AtomicInteger chips;
-    private AtomicInteger walletBalance;
-    private int roundContribution = 0;
-    private int totalInHand = 0;
+    private AtomicLong chips;
+    private AtomicLong walletBalance;
+    private long roundContribution = 0;
+    private long totalInHand = 0;
     private final List<Card> hand;
 
-    public Player(String userId, String name, AtomicInteger remainingWallet, AtomicInteger chips) {
+    public Player(String userId, String name, AtomicLong remainingWallet, AtomicLong chips) {
         this.userId = userId;
         this.name = name;
         this.walletBalance = remainingWallet;
@@ -31,7 +31,7 @@ public class Player {
     public void clearHand() {
         hand.clear();
     }
-    public int bet(int amount) {
+    public long bet(long amount) {
         if (amount < 0) {
             return 0;
         }
@@ -49,28 +49,28 @@ public class Player {
     public String getName() {
         return name;
     }
-    public AtomicInteger getWalletBalance() {
+    public AtomicLong getWalletBalance() {
         return walletBalance;
     }
-    public AtomicInteger getChips() {
+    public AtomicLong getChips() {
         return chips;
     }
-    public int getRoundContribution() {
+    public long getRoundContribution() {
         return roundContribution;
     }
-    public void setRoundContribution(int roundContribution) {
+    public void setRoundContribution(long roundContribution) {
         this.roundContribution = roundContribution;
     }
-    public void addToRoundContribution(int amount) {
+    public void addToRoundContribution(long amount) {
         this.roundContribution += amount;
     }
-    public int getTotalInHand() {
+    public long getTotalInHand() {
         return totalInHand;
     }
-    public void setTotalInHand(int totalInHand) {
+    public void setTotalInHand(long totalInHand) {
         this.totalInHand = totalInHand;
     }
-    public void addToTotalInHand(int totalInHand) {
+    public void addToTotalInHand(long totalInHand) {
         this.totalInHand += totalInHand;
     }
     public List<Card> getHand() {

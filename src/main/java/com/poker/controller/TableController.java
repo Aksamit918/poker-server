@@ -2,15 +2,12 @@ package com.poker.controller;
 
 import com.poker.dto.*;
 import com.poker.exception.ChipAmountException;
-import com.poker.exception.IllegalTableStateException;
 import com.poker.model.Player;
 import com.poker.model.PlayerAction;
 import com.poker.model.Table;
-import com.poker.model.TableStates;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
 import com.poker.service.TableManager;
-import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,9 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -64,23 +60,24 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Account account = accountService.findById(Long.parseLong(request.getUserId()));
-        long realWalletBalance = account.getBalance();
+        long userBuyIn = request.getChips();
 
-        int userBuyIn = request.getChips();
-        if (userBuyIn < table.getMinBuyIn() || userBuyIn > table.getMaxBuyIn()) {
-            throw new ChipAmountException("Invalid buy-in amount");
+        if (userBuyIn < table.getMinBuyIn()) {
+            throw new ChipAmountException("Insufficient buy-in. Minimum required: " + table.getMinBuyIn());
+        }
+        if (userBuyIn > table.getMaxBuyIn()) {
+            throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + table.getMaxBuyIn());
         }
 
-        if (realWalletBalance < userBuyIn) {
-            throw new ChipAmountException("Not enough money in wallet");
-        }
+        Long userId = Long.parseLong(request.getUserId());
+        accountService.withdrawFromWallet(userId, userBuyIn);
 
+        Account account = accountService.findById(userId);
         Player newPlayer = new Player(
                 String.valueOf(account.getId()),
                 account.getNickname(),
-                new AtomicInteger((int) (realWalletBalance - userBuyIn)),
-                new AtomicInteger(userBuyIn)
+                new AtomicLong(account.getBalance()),
+                new AtomicLong(userBuyIn)
         );
 
         table.joinTable(newPlayer);
@@ -149,9 +146,19 @@ public class TableController {
         Player player = table.findPlayerById(request.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found at this table"));
 
-        int fakeWalletBalance = player.getWalletBalance().get();
+        long amount = request.getAmount();
 
-        table.rebuy(player, request.getAmount(), fakeWalletBalance);
+        long currentChips = player.getChips().get();
+        if (currentChips + amount > table.getMaxBuyIn()) {
+            throw new ChipAmountException("Rebuy exceeds maximum table limit");
+        }
+
+        accountService.withdrawFromWallet(Long.parseLong(player.getUserId()), amount);
+
+        Account account = accountService.findById(Long.parseLong(player.getUserId()));
+        long realWalletBalance = account.getBalance();
+
+        table.rebuy(player, amount, realWalletBalance);
 
         return TableDetailsDTO.createTableDetailsDTO(table);
     }

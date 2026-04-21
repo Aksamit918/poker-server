@@ -96,7 +96,7 @@ public class AccountService {
     }
 
     @Transactional
-    public void withdraw(Long accountId, long amount) {
+    public void withdrawFromWallet(Long accountId, long amount) {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
 
@@ -108,5 +108,19 @@ public class AccountService {
         accountRepository.save(account);
 
         // TODO: transactionService.log(accountId, -amount, TransactionType.BUY_IN);
+    }
+
+    @Transactional
+    public void depositToWallet(Long accountId, long amount) {
+        // TODO: handle negative number log
+        if (amount <= 0) {
+            return;
+        }
+
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("User not found"));
+
+        account.setBalance(account.getBalance() + amount);
+        accountRepository.save(account);
     }
 }

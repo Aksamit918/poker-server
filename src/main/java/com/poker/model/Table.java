@@ -3,24 +3,26 @@ package com.poker.model;
 import com.poker.exception.TableFullException;
 import com.poker.exception.*;
 import com.poker.util.HandEvaluator;
+import com.poker.util.PlayerLeaveListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class Table {
     private final Object lock = new Object();
+    private final PlayerLeaveListener leaveListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
     private static final int TURN_TIMEOUT_SECONDS = 300;
     private final String id;
     private final int MAX_PLAYERS;
     private final int MIN_PLAYERS;
-    private final int minBuyIn;
-    private final int maxBuyIn;
+    private final long minBuyIn;
+    private final long maxBuyIn;
     private volatile TableStates state;
     private final List<Player> players;
     private int activePlayerIdx;
@@ -29,18 +31,19 @@ public class Table {
     private int bigBlindIdx;
     private Deck deck;
     private final List<Card> communityCards;
-    private AtomicInteger pot;
-    private int currentMaxBet = 0;
-    private final int smallBlindBet;
-    private final int bigBlindBet;
-    public Table(String id, int smallBlindBet, int bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS) {
+    private AtomicLong pot;
+    private long currentMaxBet = 0;
+    private final long smallBlindBet;
+    private final long bigBlindBet;
+    public Table(String id, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
+                 PlayerLeaveListener leaveListener) {
         this.id = id;
         this.MIN_PLAYERS = MIN_PLAYERS;
         this.MAX_PLAYERS = MAX_PLAYERS;
         this.players = new CopyOnWriteArrayList<>();
         this.deck = new Deck();
         this.communityCards = new CopyOnWriteArrayList<>();
-        this.pot = new AtomicInteger(0);
+        this.pot = new AtomicLong(0);
         this.state = TableStates.WAITING_FOR_PLAYERS;
         this.smallBlindBet = smallBlindBet;
         this.bigBlindBet = bigBlindBet;
@@ -48,6 +51,7 @@ public class Table {
         this.maxBuyIn = bigBlindBet * 100;
         this.dealerIdx = -1;
         this.activePlayerIdx = -1;
+        this.leaveListener = leaveListener;
     }
 
     private void setupPositions() {
@@ -80,8 +84,8 @@ public class Table {
         }
 
         setupPositions();
-        int smallBlindForcedBet = players.get(smallBlindIdx).bet(smallBlindBet);
-        int bigBlindForcedBet = players.get(bigBlindIdx).bet(bigBlindBet);
+        long smallBlindForcedBet = players.get(smallBlindIdx).bet(smallBlindBet);
+        long bigBlindForcedBet = players.get(bigBlindIdx).bet(bigBlindBet);
         pot.addAndGet(smallBlindForcedBet);
         pot.addAndGet(bigBlindForcedBet);
         players.get(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
@@ -160,11 +164,11 @@ public class Table {
         player.setStatus(PlayerStatus.FOLDED);
     }
     private void processCall(Player player) {
-        int amountToCall = currentMaxBet - player.getRoundContribution();
+        long amountToCall = currentMaxBet - player.getRoundContribution();
         if (amountToCall <= 0) {
             throw new IllegalCallException("There is no bet to call. Please use CHECK instead.");
         }
-        int actualPaid = player.bet(amountToCall);
+        long actualPaid = player.bet(amountToCall);
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
@@ -174,8 +178,8 @@ public class Table {
         if (newMaxBet <= currentMaxBet) {
             throw new IllegalRaiseException("New Max Bet must exceed Current Max Bet");
         }
-        int amountToRaise = newMaxBet - player.getRoundContribution();
-        int actualPaid = player.bet(amountToRaise);
+        long amountToRaise = newMaxBet - player.getRoundContribution();
+        long actualPaid = player.bet(amountToRaise);
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
@@ -193,20 +197,20 @@ public class Table {
         player.setStatus(PlayerStatus.CHECKED);
     }
     private void processAllIn(Player player) {
-        int chips = player.getChips().get();
-        int currentContribution = player.getRoundContribution();
+        long chips = player.getChips().get();
+        long currentContribution = player.getRoundContribution();
 
-        int maxOpponentCanCommit = players.stream()
+        long maxOpponentCanCommit = players.stream()
                 .filter(p -> p != player && p.canAct())
-                .mapToInt(p -> p.getChips().get() + p.getRoundContribution())
+                .mapToLong(p -> p.getChips().get() + p.getRoundContribution())
                 .max()
                 .orElse(0);
 
-        int effectiveTotalBet = Math.min(currentContribution + chips, Math.max(currentMaxBet, maxOpponentCanCommit));
+        long effectiveTotalBet = Math.min(currentContribution + chips, Math.max(currentMaxBet, maxOpponentCanCommit));
 
-        int amountToBet = effectiveTotalBet - currentContribution;
+        long amountToBet = effectiveTotalBet - currentContribution;
 
-        int actualPaid = player.bet(amountToBet);
+        long actualPaid = player.bet(amountToBet);
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
@@ -228,27 +232,23 @@ public class Table {
             }
         }
     }
-    public void rebuy(Player player, int amount, int walletBalance) {
+    public void rebuy(Player player, long amount, long walletBalance) {
         synchronized (lock) {
             if (state != TableStates.WAITING_FOR_PLAYERS) {
                 throw new IllegalTableStateException("Rebuy is not allowed while a hand is in progress");
             }
 
-            int currentChips = player.getChips().get();
+            long currentChips = player.getChips().get();
             if (currentChips + amount > maxBuyIn) {
                 throw new ChipAmountException("Rebuy amount exceeds the maximum table limit: " + maxBuyIn);
             }
 
-            int increasedChips = currentChips + amount;
+            long increasedChips = currentChips + amount;
             if (increasedChips < minBuyIn) {
                 throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + minBuyIn);
             }
 
-            if (walletBalance < amount) {
-                throw new ChipAmountException("Insufficient wallet balance for this rebuy");
-            }
-
-            player.getWalletBalance().addAndGet(-amount);
+            player.getWalletBalance().set(walletBalance);
 
             player.getChips().addAndGet(amount);
 
@@ -370,7 +370,7 @@ public class Table {
         }
     }
     private void distributePot() {
-        Map<Player, Integer> contributions = new HashMap<>();
+        Map<Player, Long> contributions = new HashMap<>();
         for (Player p : players) {
             if (p.getTotalInHand() > 0) {
                 contributions.put(p, p.getTotalInHand());
@@ -387,24 +387,24 @@ public class Table {
                 break;
             }
 
-            int minContribution = eligibleCandidates.stream()
+            long minContribution = eligibleCandidates.stream()
                     .map(contributions::get)
-                    .min(Integer::compareTo)
-                    .orElse(0);
+                    .min(Long::compareTo)
+                    .orElse(0L);
 
             if (minContribution == 0) break;
 
             int currentPotLayer = 0;
-            Iterator<Map.Entry<Player, Integer>> iterator = contributions.entrySet().iterator();
+            Iterator<Map.Entry<Player, Long>> iterator = contributions.entrySet().iterator();
 
             while (iterator.hasNext()) {
-                Map.Entry<Player, Integer> entry = iterator.next();
-                int playerContributed = entry.getValue();
+                Map.Entry<Player, Long> entry = iterator.next();
+                long playerContributed = entry.getValue();
 
-                int taken = Math.min(playerContributed, minContribution);
+                long taken = Math.min(playerContributed, minContribution);
 
                 currentPotLayer += taken;
-                int newValue = playerContributed - taken;
+                long newValue = playerContributed - taken;
 
                 if (newValue == 0) {
                     iterator.remove();
@@ -438,7 +438,7 @@ public class Table {
                 throw new TableFullException("Table is full");
             }
 
-            int buyIn = player.getChips().get();
+            long buyIn = player.getChips().get();
 
             if (buyIn < minBuyIn) {
                 throw new ChipAmountException("Insufficient buy-in. Minimum required: " + minBuyIn);
@@ -467,6 +467,10 @@ public class Table {
                     stopTimer();
                 }
                 processFold(player);
+            }
+
+            if (leaveListener != null) {
+                leaveListener.onPlayerLeave(player.getUserId(), player.getChips().get());
             }
 
             players.remove(player);
@@ -536,7 +540,7 @@ public class Table {
             p.setTotalInHand(0);
             p.setRoundContribution(0);
 
-            if (p.getChips().get() < bigBlindBet) {
+            if (p.getChips().get() < minBuyIn) {
                 if (p.getStatus() != PlayerStatus.SITTING_OUT) {
                     p.setStatus(PlayerStatus.SITTING_OUT);
 
@@ -609,19 +613,19 @@ public class Table {
     public int getMAX_PLAYERS() {
         return MAX_PLAYERS;
     }
-    public int getSmallBlindBet() {
+    public long getSmallBlindBet() {
         return smallBlindBet;
     }
-    public int getBigBlindBet() {
+    public long getBigBlindBet() {
         return bigBlindBet;
     }
-    public int getMinBuyIn() {
+    public long getMinBuyIn() {
         return minBuyIn;
     }
-    public int getMaxBuyIn() {
+    public long getMaxBuyIn() {
         return maxBuyIn;
     }
-    public int getCurrentMaxBet() {
+    public long getCurrentMaxBet() {
         return currentMaxBet;
     }
     public TableStates getState() {
@@ -630,7 +634,7 @@ public class Table {
     public int getPlayerCount() {
         return players.size();
     }
-    public int getPot() {
+    public long getPot() {
         return pot.get();
     }
     public int getDealerIdx() {

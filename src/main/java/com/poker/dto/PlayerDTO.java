@@ -19,7 +19,7 @@ public class PlayerDTO {
     private String name;
 
     @JsonProperty("chips")
-    private int chips;
+    private long chips;
 
     @JsonProperty("cards")
     private List<String> cards;
@@ -31,10 +31,10 @@ public class PlayerDTO {
     private boolean isActive;
 
     @JsonProperty("amount_to_call")
-    private int amountToCall;
+    private long amountToCall;
 
-    public static PlayerDTO fromPlayer(Player player, int currentMaxBet) {
-        int toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
+    public static PlayerDTO fromPlayer(Player player, long currentMaxBet) {
+        long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
 
         List<String> cards = player.getHand().stream()
                 .map(Card::getShortName)
