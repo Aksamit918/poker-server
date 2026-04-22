@@ -23,7 +23,7 @@ public class TableManager {
         this.tableRepository = tableRepository;
     }
 
-    public String createTable(int smallBlind, int bigBlind, int minPlayersNum, int maxPlayersNum) {
+    public String createTable(String name, int smallBlind, int bigBlind, int minPlayersNum, int maxPlayersNum) {
         String tableIdStr;
 
         do {
@@ -34,7 +34,7 @@ public class TableManager {
 
         GameTable dbTable = new GameTable(
                 tableUuid,
-                "Custom Table",
+                name,
                 smallBlind,
                 bigBlind,
                 minPlayersNum,
@@ -48,7 +48,7 @@ public class TableManager {
         tableRepository.save(dbTable);
 
         PlayerLeaveListener listener = createLeaveListener(tableIdStr);
-        Table newTable = new Table(tableIdStr, smallBlind, bigBlind, minPlayersNum, maxPlayersNum, listener);
+        Table newTable = new Table(tableIdStr, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum, listener);
 
         tables.put(tableIdStr, newTable);
 
@@ -73,6 +73,7 @@ public class TableManager {
 
             Table memoryTable = new Table(
                     dbTable.getId().toString(),
+                    dbTable.getName(),
                     dbTable.getSmallBlind(),
                     dbTable.getBigBlind(),
                     dbTable.getMinPlayers(),

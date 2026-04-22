@@ -11,6 +11,9 @@ public class TableDTO {
     @JsonProperty("table_id")
     private String id;
 
+    @JsonProperty("name")
+    private String name;
+
     @JsonProperty("min_players_num")
     private int minPlayerNum;
 
@@ -34,6 +37,7 @@ public class TableDTO {
 
     public static TableDTO createTableDTO(Table table) {
         String id = table.getId();
+        String name = table.getName();
         int minPlayersNum = table.getMIN_PLAYERS();
         int maxPlayersNum = table.getMAX_PLAYERS();
         String blins = table.getSmallBlindBet() + "/" + table.getBigBlindBet();
@@ -41,6 +45,6 @@ public class TableDTO {
         int currentPlayers = table.getPlayerCount();
         int maxPlayers = table.getMaxPlayers();
         String state = table.getState().name();
-        return new TableDTO(id, minPlayersNum, maxPlayersNum, blins, minBuyIn, currentPlayers, maxPlayers, state);
+        return new TableDTO(id, name, minPlayersNum, maxPlayersNum, blins, minBuyIn, currentPlayers, maxPlayers, state);
     }
 }

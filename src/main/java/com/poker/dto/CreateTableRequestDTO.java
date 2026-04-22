@@ -3,12 +3,15 @@ package com.poker.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 public class CreateTableRequestDTO {
+    @NotBlank
+    private String name;
 
     @Min(value = 2, message = "2 players minimum")
     @JsonProperty("min_players_num")

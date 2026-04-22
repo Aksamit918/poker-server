@@ -154,8 +154,13 @@ public class TableController {
 
     @PostMapping
     public IdResponseDTO createTable(@Valid @RequestBody CreateTableRequestDTO request) {
-        String newId = tableManager.createTable(request.getSmallBlind(), request.getBigBlind(),
-                request.getMinPlayersNum(), request.getMaxPlayersNum());
+        String newId = tableManager.createTable(
+                request.getName(),
+                request.getSmallBlind(),
+                request.getBigBlind(),
+                request.getMinPlayersNum(),
+                request.getMaxPlayersNum()
+        );
         return new IdResponseDTO(newId);
     }
 

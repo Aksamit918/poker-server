@@ -19,6 +19,7 @@ public class Table {
     private ScheduledFuture<?> currentTimer;
     private static final int TURN_TIMEOUT_SECONDS = 300;
     private final String id;
+    private String name;
     private final int MAX_PLAYERS;
     private final int MIN_PLAYERS;
     private final long minBuyIn;
@@ -35,9 +36,10 @@ public class Table {
     private long currentMaxBet = 0;
     private final long smallBlindBet;
     private final long bigBlindBet;
-    public Table(String id, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
+    public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
                  PlayerLeaveListener leaveListener) {
         this.id = id;
+        this.name = name;
         this.MIN_PLAYERS = MIN_PLAYERS;
         this.MAX_PLAYERS = MAX_PLAYERS;
         this.players = new CopyOnWriteArrayList<>();
@@ -613,6 +615,9 @@ public class Table {
 
     public String getId() {
         return id;
+    }
+    public String getName() {
+        return name;
     }
     public int getFreeSeat() {
         Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());

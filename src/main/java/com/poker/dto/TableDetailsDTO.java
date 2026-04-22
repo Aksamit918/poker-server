@@ -11,6 +11,12 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 public class TableDetailsDTO {
+    @JsonProperty("table_id")
+    private String tableId;
+
+    @JsonProperty("name")
+    private String name;
+
     @JsonProperty("pot")
     private long pot;
 
@@ -45,6 +51,6 @@ public class TableDetailsDTO {
                 .map(p -> PlayerDTO.fromPlayer(p, currentMax))
                 .toList();
 
-        return new TableDetailsDTO(pot, dealerIdx, activePlayerIdx, cardStrings, playerDTOs, state);
+        return new TableDetailsDTO(table.getId(), table.getName(), pot, dealerIdx, activePlayerIdx, cardStrings, playerDTOs, state);
     }
 }
