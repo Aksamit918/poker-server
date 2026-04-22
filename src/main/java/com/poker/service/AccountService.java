@@ -134,7 +134,7 @@ public class AccountService {
         }
 
         if (amount < 0) {
-            throw new IllegalArgumentException("Withdraw amount must be positive. Provided: " + amount);
+            throw new IllegalArgumentException("Deposit amount must be positive. Provided: " + amount);
         }
 
         Account account = accountRepository.findById(accountId)
