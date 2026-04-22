@@ -56,15 +56,15 @@ public class Table {
 
     private void setupPositions() {
         if (this.dealerIdx == -1) {
-            this.dealerIdx = new Random().nextInt(players.size());
+            this.dealerIdx = players.get(new Random().nextInt(players.size())).getSeatIndex();
         } else {
-            this.dealerIdx = (this.dealerIdx + 1) % players.size();
+            this.dealerIdx = getNextPlayerSeat(dealerIdx);
         }
 
-        this.smallBlindIdx = (this.dealerIdx + 1) % players.size();
-        this.bigBlindIdx = (this.dealerIdx + 2) % players.size();
+        this.smallBlindIdx = getNextPlayerSeat(dealerIdx);
+        this.bigBlindIdx = getNextPlayerSeat(smallBlindIdx);
 
-        this.activePlayerIdx = (this.dealerIdx + 3) % players.size();
+        this.activePlayerIdx = getNextPlayerSeat(bigBlindIdx);
     }
     private void startNewHand() {
         for (Player p : players) {
@@ -84,14 +84,14 @@ public class Table {
         }
 
         setupPositions();
-        long smallBlindForcedBet = players.get(smallBlindIdx).bet(smallBlindBet);
-        long bigBlindForcedBet = players.get(bigBlindIdx).bet(bigBlindBet);
+        long smallBlindForcedBet = getPlayerBySeat(smallBlindIdx).bet(smallBlindBet);
+        long bigBlindForcedBet = getPlayerBySeat(bigBlindIdx).bet(bigBlindBet);
         pot.addAndGet(smallBlindForcedBet);
         pot.addAndGet(bigBlindForcedBet);
-        players.get(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
-        players.get(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
-        players.get(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
-        players.get(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
+        getPlayerBySeat(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
+        getPlayerBySeat(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
+        getPlayerBySeat(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
+        getPlayerBySeat(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
         this.currentMaxBet = bigBlindForcedBet;
         dealCards();
         this.state = TableStates.PRE_FLOP;
@@ -137,14 +137,20 @@ public class Table {
         }
     }
 
+    private Player getPlayerBySeat(int seatIndex) {
+        return players.stream()
+                .filter(p -> p.getSeatIndex() == seatIndex)
+                .findFirst()
+                .orElse(null);
+    }
     private boolean isPlayerTurn(Player player) {
-        return player.equals(this.players.get(activePlayerIdx));
+        return player.equals(this.getPlayerBySeat(activePlayerIdx));
     }
     private boolean advanceTurn() {
         int nextIdx = activePlayerIdx;
         for (int i = 0; i < players.size(); i++) {
-            nextIdx = (nextIdx + 1) % players.size();
-            Player p = players.get(nextIdx);
+            nextIdx = getNextPlayerSeat(nextIdx);
+            Player p = getPlayerBySeat(nextIdx);
             if (p.getStatus() == PlayerStatus.ACTIVE) {
                 activePlayerIdx = nextIdx;
                 return true;
@@ -521,7 +527,7 @@ public class Table {
             synchronized (lock) {
                 if (state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) return;
 
-                Player timedOutPlayer = players.get(activePlayerIdx);
+                Player timedOutPlayer = getPlayerBySeat(activePlayerIdx);
                 processFold(timedOutPlayer);
 
                 boolean hasNext = advanceTurn();
@@ -606,6 +612,41 @@ public class Table {
 
     public String getId() {
         return id;
+    }
+    public int getFreeSeat() {
+        Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            if (!occupiedSeats.contains(i)) {
+                return i;
+            }
+        }
+        throw new TableFullException("Table is full");
+    }
+    public int getNextPlayerSeat(int currentSeat) {
+        Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());
+        if (occupiedSeats.isEmpty()) return -1;
+        int nextSeat = currentSeat;
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            nextSeat = (currentSeat + 1) % MAX_PLAYERS;
+            if (occupiedSeats.contains(nextSeat)) {
+                break;
+            }
+            currentSeat = nextSeat;
+        }
+        return nextSeat;
+    }
+    public int getPrevPlayerSeat(int currentSeat) {
+        Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());
+        if (occupiedSeats.isEmpty()) return -1;
+        int prevSeat = currentSeat;
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            prevSeat = (currentSeat - 1 + MAX_PLAYERS) % MAX_PLAYERS;
+            if (occupiedSeats.contains(prevSeat)) {
+                break;
+            }
+            currentSeat = prevSeat;
+        }
+        return prevSeat;
     }
     public int getMIN_PLAYERS() {
         return MIN_PLAYERS;

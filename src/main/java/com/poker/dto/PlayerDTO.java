@@ -18,6 +18,9 @@ public class PlayerDTO {
     @JsonProperty("name")
     private String name;
 
+    @JsonProperty("seat_index")
+    private int seatIndex;
+
     @JsonProperty("chips")
     private long chips;
 
@@ -43,6 +46,7 @@ public class PlayerDTO {
         return new PlayerDTO(
                 player.getUserId(),
                 player.getName(),
+                player.getSeatIndex(),
                 player.getChips().get(),
                 cards,
                 player.getStatus().name(),

@@ -61,6 +61,8 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
+        int seatIndex = table.getFreeSeat();
+
         long userBuyIn = request.getChips();
 
         if (userBuyIn < table.getMinBuyIn()) {
@@ -77,6 +79,7 @@ public class TableController {
         Player newPlayer = new Player(
                 String.valueOf(account.getId()),
                 account.getNickname(),
+                seatIndex,
                 new AtomicLong(account.getBalance()),
                 new AtomicLong(userBuyIn)
         );
