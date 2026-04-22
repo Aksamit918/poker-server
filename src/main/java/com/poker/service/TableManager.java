@@ -11,36 +11,48 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class TableManager {
     private final Map<String, Table> tables = new ConcurrentHashMap<>();
     private final AccountService accountService;
     private final GameTableRepository tableRepository;
+
     public TableManager(AccountService accountService, GameTableRepository tableRepository) {
         this.accountService = accountService;
         this.tableRepository = tableRepository;
     }
+
     public String createTable(int smallBlind, int bigBlind, int minPlayersNum, int maxPlayersNum) {
-        String id = null;
+        String tableIdStr;
 
         do {
-            id = UUID.randomUUID().toString();
-        } while (tables.containsKey(id));
+            tableIdStr = UUID.randomUUID().toString();
+        } while (tables.containsKey(tableIdStr));
 
-        final String finalTableId = id;
+        UUID tableUuid = UUID.fromString(tableIdStr);
 
-        PlayerLeaveListener listener = (userId, chips) -> {
-            if (chips > 0) {
-                accountService.depositToWallet(Long.parseLong(userId), chips, finalTableId, TransactionType.CASH_OUT);
-            }
-        };
+        GameTable dbTable = new GameTable(
+                tableUuid,
+                "Custom Table",
+                smallBlind,
+                bigBlind,
+                minPlayersNum,
+                maxPlayersNum,
+                false,
+                null,
+                false,
+                null
+        );
 
-        Table newTable = new Table(id, smallBlind, bigBlind, minPlayersNum, maxPlayersNum, listener);
-        tables.put(id, newTable);
+        tableRepository.save(dbTable);
 
-        return id;
+        PlayerLeaveListener listener = createLeaveListener(tableIdStr);
+        Table newTable = new Table(tableIdStr, smallBlind, bigBlind, minPlayersNum, maxPlayersNum, listener);
+
+        tables.put(tableIdStr, newTable);
+
+        return tableIdStr;
     }
     public Table getTable(String id) {
         return tables.get(id);
@@ -51,16 +63,13 @@ public class TableManager {
     public List<Table> getAllTables() {
         return new ArrayList<>(tables.values());
     }
+
     @PostConstruct
     public void initSystemTables() {
         List<GameTable> systemTables = tableRepository.findByIsSystemTrue();
 
         for (GameTable dbTable : systemTables) {
-            PlayerLeaveListener listener = (userId, chips) -> {
-                if (chips > 0) {
-                    accountService.depositToWallet(Long.parseLong(userId), chips, dbTable.getId().toString(),TransactionType.CASH_OUT);
-                }
-            };
+            PlayerLeaveListener listener = createLeaveListener(dbTable.getId().toString());
 
             Table memoryTable = new Table(
                     dbTable.getId().toString(),
@@ -74,5 +83,21 @@ public class TableManager {
             tables.put(memoryTable.getId(), memoryTable);
         }
         System.out.println("Loaded " + systemTables.size() + " system tables from DB.");
+    }
+
+    private PlayerLeaveListener createLeaveListener(String tableId) {
+        return (userId, chips) -> {
+            accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
+
+            Table table = tables.get(tableId);
+            if (table != null && table.getPlayers().isEmpty()) {
+                tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
+                    if (!dbTable.isSystem()) {
+                        tables.remove(tableId);
+                        tableRepository.delete(dbTable);
+                    }
+                });
+            }
+        };
     }
 }

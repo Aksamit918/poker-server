@@ -45,4 +45,18 @@ public class GameTable {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    public GameTable(UUID id, String name, int smallBlind, int bigBlind, int minPlayers, int maxPlayers, boolean isPrivate, String passcode, boolean isSystem, Account creator) {
+        this.id = id;
+        this.name = name;
+        this.smallBlind = smallBlind;
+        this.bigBlind = bigBlind;
+        this.minPlayers = minPlayers;
+        this.maxPlayers = maxPlayers;
+        this.isPrivate = isPrivate;
+        this.passcode = passcode;
+        this.isSystem = isSystem;
+        this.creator = creator;
+        this.createdAt = LocalDateTime.now();
+    }
 }
