@@ -487,6 +487,7 @@ public class Table {
 
             if (players.isEmpty()) {
                 cleanupTable();
+                this.dealerIdx = -1;
                 return;
             }
 
