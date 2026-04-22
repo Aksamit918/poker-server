@@ -29,9 +29,11 @@ public class TableManager {
             id = UUID.randomUUID().toString();
         } while (tables.containsKey(id));
 
+        final String finalTableId = id;
+
         PlayerLeaveListener listener = (userId, chips) -> {
             if (chips > 0) {
-                accountService.depositToWallet(Long.parseLong(userId), chips);
+                accountService.depositToWallet(Long.parseLong(userId), chips, finalTableId, TransactionType.CASH_OUT);
             }
         };
 
@@ -56,7 +58,7 @@ public class TableManager {
         for (GameTable dbTable : systemTables) {
             PlayerLeaveListener listener = (userId, chips) -> {
                 if (chips > 0) {
-                    accountService.depositToWallet(Long.parseLong(userId), chips);
+                    accountService.depositToWallet(Long.parseLong(userId), chips, dbTable.getId(),TransactionType.CASH_OUT);
                 }
             };
 

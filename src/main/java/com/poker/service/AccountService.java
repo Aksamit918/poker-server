@@ -3,8 +3,13 @@ package com.poker.service;
 import com.poker.exception.AccountNotFoundException;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.InvalidCredentialsException;
+import com.poker.model.TransactionType;
 import com.poker.persistence.entity.Account;
+import com.poker.persistence.entity.GameTable;
+import com.poker.persistence.entity.Transaction;
 import com.poker.persistence.repository.AccountRepository;
+import com.poker.persistence.repository.GameTableRepository;
+import com.poker.persistence.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,9 +18,14 @@ import java.util.List;
 @Service
 public class AccountService {
     private final AccountRepository accountRepository;
+    private final TransactionRepository transactionRepository;
+    private final GameTableRepository gameTableRepository;
 
-    public AccountService(AccountRepository accountRepository) {
+    public AccountService(AccountRepository accountRepository, TransactionRepository transactionRepository,
+                          GameTableRepository gameTableRepository) {
         this.accountRepository = accountRepository;
+        this.transactionRepository = transactionRepository;
+        this.gameTableRepository = gameTableRepository;
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +106,11 @@ public class AccountService {
     }
 
     @Transactional
-    public void withdrawFromWallet(Long accountId, long amount) {
+    public void withdrawFromWallet(Long accountId, long amount, String tableId, TransactionType type) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Withdraw amount must be greater than zero");
+        }
+
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
 
@@ -104,23 +118,34 @@ public class AccountService {
             throw new ChipAmountException("Not enough money in wallet");
         }
 
+        GameTable table = gameTableRepository.findById(tableId).orElse(null);
+
         account.setBalance(account.getBalance() - amount);
         accountRepository.save(account);
 
-        // TODO: transactionService.log(accountId, -amount, TransactionType.BUY_IN);
+        Transaction tx = new Transaction(account, table, -amount, type);
+        transactionRepository.save(tx);
     }
 
     @Transactional
-    public void depositToWallet(Long accountId, long amount) {
-        // TODO: handle negative number log
-        if (amount <= 0) {
+    public void depositToWallet(Long accountId, long amount, String tableId, TransactionType type) {
+        if (amount == 0) {
             return;
+        }
+
+        if (amount < 0) {
+            throw new IllegalArgumentException("Withdraw amount must be positive. Provided: " + amount);
         }
 
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
 
+        GameTable table = gameTableRepository.findById(tableId).orElse(null);
+
         account.setBalance(account.getBalance() + amount);
         accountRepository.save(account);
+
+        Transaction tx = new Transaction(account, table, amount, type);
+        transactionRepository.save(tx);
     }
 }
