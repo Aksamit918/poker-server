@@ -21,7 +21,7 @@ public class TableDTO {
     private String blinds; // e.g., "10/20"
 
     @JsonProperty("min_buy_in")
-    private int minBuyIn;
+    private long minBuyIn;
 
     @JsonProperty("current_players")
     private int currentPlayers;
@@ -37,7 +37,7 @@ public class TableDTO {
         int minPlayersNum = table.getMIN_PLAYERS();
         int maxPlayersNum = table.getMAX_PLAYERS();
         String blins = table.getSmallBlindBet() + "/" + table.getBigBlindBet();
-        int minBuyIn = table.getBigBlindBet() * 10;
+        long minBuyIn = table.getMinBuyIn();
         int currentPlayers = table.getPlayerCount();
         int maxPlayers = table.getMaxPlayers();
         String state = table.getState().name();
