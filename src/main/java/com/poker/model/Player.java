@@ -14,8 +14,9 @@ public class Player {
     private volatile PlayerStatus status = PlayerStatus.WAITING;
     private AtomicLong chips;
     private AtomicLong walletBalance;
-    private long roundContribution = 0;
-    private long totalInHand = 0;
+    private long roundContribution = 0L;
+    private long totalInHand = 0L;
+    private long lastActionAmount = 0L;
     private final List<Card> hand;
 
     public Player(String userId, String name, int seatIndex, AtomicLong remainingWallet, AtomicLong chips) {
@@ -86,6 +87,12 @@ public class Player {
     }
     public void setStatus(PlayerStatus status) {
         this.status = status;
+    }
+    public long getLastActionAmount() {
+        return lastActionAmount;
+    }
+    public void setLastActionAmount(Long amount) {
+        this.lastActionAmount = amount;
     }
     public boolean canAct() {
         return status == PlayerStatus.ACTIVE ||

@@ -180,6 +180,7 @@ public class Table {
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
+        player.setRoundContribution(actualPaid);
         updateStatusAfterBet(player);
     }
     private void processRaise(Player player, int newMaxBet) {
@@ -191,6 +192,7 @@ public class Table {
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
+        player.setRoundContribution(actualPaid);
         updateStatusAfterBet(player);
         this.currentMaxBet = newMaxBet;
         players.stream()
@@ -222,6 +224,7 @@ public class Table {
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
+        player.setRoundContribution(actualPaid);
 
         if (player.getChips().get() == 0) {
             player.setStatus(PlayerStatus.ALL_IN);
