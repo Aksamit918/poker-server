@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AccountService {
@@ -33,7 +34,7 @@ public class AccountService {
         return accountRepository.findByNicknameContaining(name);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Account login(String login, String password) {
         Account account = accountRepository.findByLogin(login)
                 .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
@@ -41,6 +42,17 @@ public class AccountService {
         // TODO: BCrypt for hash checking
         if (!password.equals(account.getPassword())) {
             throw new InvalidCredentialsException("Invalid password");
+        }
+
+        Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
+        if (lastTx.isPresent()) {
+            if (lastTx.get().getType() == TransactionType.BUY_IN || lastTx.get().getType() == TransactionType.REBUY) {
+                long refundAmount = Math.abs(lastTx.get().getAmount());
+                account.setBalance(account.getBalance() + refundAmount);
+                accountRepository.save(account);
+                Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
+                transactionRepository.save(refundLog);
+            }
         }
 
         return account;

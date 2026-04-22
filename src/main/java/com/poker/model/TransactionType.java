@@ -4,5 +4,6 @@ public enum TransactionType {
     BUY_IN,
     CASH_OUT,
     REBUY,
-    BONUS
+    BONUS,
+    SYSTEM_REFUND
 }
