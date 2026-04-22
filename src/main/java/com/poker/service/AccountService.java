@@ -10,6 +10,7 @@ import com.poker.persistence.entity.Transaction;
 import com.poker.persistence.repository.AccountRepository;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.persistence.repository.TransactionRepository;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +22,16 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final GameTableRepository gameTableRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-    public AccountService(AccountRepository accountRepository, TransactionRepository transactionRepository,
-                          GameTableRepository gameTableRepository) {
+    public AccountService(AccountRepository accountRepository,
+                          TransactionRepository transactionRepository,
+                          GameTableRepository gameTableRepository,
+                          BCryptPasswordEncoder passwordEncoder) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.gameTableRepository = gameTableRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
@@ -39,8 +44,7 @@ public class AccountService {
         Account account = accountRepository.findByLogin(login)
                 .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
 
-        // TODO: BCrypt for hash checking
-        if (!password.equals(account.getPassword())) {
+        if (!passwordEncoder.matches(password, account.getPassword())) {
             throw new InvalidCredentialsException("Invalid password");
         }
 
@@ -68,7 +72,9 @@ public class AccountService {
             throw new IllegalArgumentException("Password must be at least 6 characters");
         }
 
-        Account account = new Account(login, password, nickname);
+        String encodedPassword = passwordEncoder.encode(password);
+
+        Account account = new Account(login, encodedPassword, nickname);
         return accountRepository.save(account);
     }
 
@@ -91,13 +97,12 @@ public class AccountService {
         return accountRepository.save(account);
     }
 
-
     @Transactional
     public void changePassword(Long id, String oldPassword, String newPassword) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found"));
 
-        if (!account.getPassword().equals(oldPassword)) {
+        if (!passwordEncoder.matches(oldPassword, account.getPassword())) {
             throw new InvalidCredentialsException("Current password is incorrect");
         }
 
@@ -105,7 +110,8 @@ public class AccountService {
             throw new IllegalArgumentException("New password must be at least 6 characters");
         }
 
-        account.setPassword(newPassword);
+        String encodedNewPassword = passwordEncoder.encode(newPassword);
+        account.setPassword(encodedNewPassword);
         accountRepository.save(account);
     }
 
