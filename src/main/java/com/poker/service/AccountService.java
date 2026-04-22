@@ -118,7 +118,10 @@ public class AccountService {
             throw new ChipAmountException("Not enough money in wallet");
         }
 
-        GameTable table = gameTableRepository.findById(tableId).orElse(null);
+        GameTable table = null;
+        if (tableId != null) {
+            table = gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
+        }
 
         account.setBalance(account.getBalance() - amount);
         accountRepository.save(account);
@@ -140,7 +143,10 @@ public class AccountService {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
 
-        GameTable table = gameTableRepository.findById(tableId).orElse(null);
+        GameTable table = null;
+        if (tableId != null) {
+            table = gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
+        }
 
         account.setBalance(account.getBalance() + amount);
         accountRepository.save(account);
