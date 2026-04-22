@@ -31,7 +31,7 @@ public class PlayerDTO {
     private String status;
 
     @JsonProperty("is_active")
-    private boolean isActive;
+    private boolean active;
 
     @JsonProperty("amount_to_call")
     private long amountToCall;
