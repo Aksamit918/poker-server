@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "game_tables")
@@ -12,7 +13,7 @@ import java.time.LocalDateTime;
 public class GameTable {
 
     @Id
-    private String id;
+    private UUID id;
 
     @Column(nullable = false)
     private String name;

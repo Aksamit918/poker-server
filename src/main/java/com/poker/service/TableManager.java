@@ -58,12 +58,12 @@ public class TableManager {
         for (GameTable dbTable : systemTables) {
             PlayerLeaveListener listener = (userId, chips) -> {
                 if (chips > 0) {
-                    accountService.depositToWallet(Long.parseLong(userId), chips, dbTable.getId(),TransactionType.CASH_OUT);
+                    accountService.depositToWallet(Long.parseLong(userId), chips, dbTable.getId().toString(),TransactionType.CASH_OUT);
                 }
             };
 
             Table memoryTable = new Table(
-                    dbTable.getId(),
+                    dbTable.getId().toString(),
                     dbTable.getSmallBlind(),
                     dbTable.getBigBlind(),
                     dbTable.getMinPlayers(),
