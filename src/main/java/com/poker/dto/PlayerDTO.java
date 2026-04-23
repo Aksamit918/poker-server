@@ -33,15 +33,10 @@ public class PlayerDTO {
     @JsonProperty("is_active")
     private boolean active;
 
-    @JsonProperty("current_bet")
-    private long currentBet;
-
-    @JsonProperty("amount_to_call")
-    private long amountToCall;
+    @JsonProperty("round_contribution")
+    private long roundContribution;
 
     public static PlayerDTO fromPlayer(Player player, long currentMaxBet) {
-        long amountToCall = Math.max(0, currentMaxBet - player.getRoundContribution());
-
         List<String> cards = player.getHand().stream()
                 .map(Card::getShortName)
                 .toList();
@@ -53,9 +48,8 @@ public class PlayerDTO {
                 player.getChips().get(),
                 cards,
                 player.getStatus().name(),
-                player.getStatus() != PlayerStatus.FOLDED,
-                player.getLastActionAmount(),
-                amountToCall
+                player.canAct(),
+                player.getRoundContribution()
         );
     }
 }
