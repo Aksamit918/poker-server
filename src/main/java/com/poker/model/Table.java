@@ -17,7 +17,7 @@ public class Table {
     private final PlayerLeaveListener leaveListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
-    private static final int TURN_TIMEOUT_SECONDS = 300;
+    private static final int TURN_TIMEOUT_SECONDS = 60;
     private final String id;
     private String name;
     private final int MAX_PLAYERS;
@@ -534,14 +534,23 @@ public class Table {
                 if (state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) return;
 
                 Player timedOutPlayer = getPlayerBySeat(activePlayerIdx);
-                processFold(timedOutPlayer);
+                if (timedOutPlayer != null) {
+                    processFold(timedOutPlayer);
+                }
+
+                long survivors = players.stream().filter(Player::isInHand).count();
+                if (survivors < 2) {
+                    finishHandPrematurely();
+                    return;
+                }
+
 
                 boolean hasNext = advanceTurn();
                 if (!hasNext) {
                     endBettingRound();
+                } else {
+                    startTimer();
                 }
-
-                startTimer();
             }
         }, TURN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
