@@ -3,38 +3,23 @@ package com.poker.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Card;
 import com.poker.model.Table;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
 import java.util.List;
 
-@Data
-@AllArgsConstructor
-public class TableDetailsDTO {
-    @JsonProperty("table_id")
-    private String tableId;
-
-    @JsonProperty("table_name")
-    private String name;
-
-    @JsonProperty("pot")
-    private long pot;
-
-    @JsonProperty("dealer_seat")
-    private int dealerIdx;
-
-    @JsonProperty("current_turn_seat")
-    private int activePlayerIdx;
-
-    @JsonProperty("community_cards")
-    private List<String> communityCards;
-
-    @JsonProperty("players")
-    private List<PlayerDTO> players;
-
-    @JsonProperty("state")
-    private String state;
-
+public record TableDetailsDTO(
+        @JsonProperty("table_id")
+        String tableId,
+        @JsonProperty("table_name")
+        String name,
+        long pot,
+        @JsonProperty("dealer_seat")
+        int dealerIdx,
+        @JsonProperty("current_turn_seat")
+        int activePlayerIdx,
+        @JsonProperty("community_cards")
+        List<String> communityCards,
+        List<PlayerDTO> players,
+        String state
+) {
     public static TableDetailsDTO createTableDetailsDTO(Table table) {
         long pot = table.getPot();
         long currentMax = table.getCurrentMaxBet();
@@ -54,3 +39,4 @@ public class TableDetailsDTO {
         return new TableDetailsDTO(table.getId(), table.getName(), pot, dealerIdx, activePlayerIdx, cardStrings, playerDTOs, state);
     }
 }
+
