@@ -535,7 +535,11 @@ public class Table {
 
                 Player timedOutPlayer = getPlayerBySeat(activePlayerIdx);
                 if (timedOutPlayer != null) {
+                    timedOutPlayer.incrementMissedTurns();
                     processFold(timedOutPlayer);
+                    if (timedOutPlayer.isKickRequired()) {
+                        leaveTable(timedOutPlayer);
+                    }
                 }
 
                 long survivors = players.stream().filter(Player::isInHand).count();
@@ -603,6 +607,7 @@ public class Table {
                 case CHECK -> processCheck(player);
                 case ALL_IN -> processAllIn(player);
             }
+            player.resetMissedTurns();
 
             long survivors = players.stream().filter(Player::isInHand).count();
 
@@ -615,12 +620,12 @@ public class Table {
 
             if (!hasNextPlayer) {
                 endBettingRound();
-            }
-
-            if (state != TableStates.WAITING_FOR_PLAYERS && state != TableStates.SHOWDOWN) {
-                startTimer();
             } else {
-                stopTimer();
+                if (state != TableStates.WAITING_FOR_PLAYERS && state != TableStates.SHOWDOWN) {
+                    startTimer();
+                } else {
+                    stopTimer();
+                }
             }
         }
     }

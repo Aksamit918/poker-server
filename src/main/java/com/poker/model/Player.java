@@ -18,6 +18,7 @@ public class Player {
     private long totalInHand = 0L;
     private long lastActionAmount = 0L;
     private final List<Card> hand;
+    private int missedTurns = 0;
 
     public Player(String userId, String name, int seatIndex, AtomicLong remainingWallet, AtomicLong chips) {
         this.userId = userId;
@@ -110,6 +111,15 @@ public class Player {
     public boolean isEligibleForNewHand() {
         return status == PlayerStatus.WAITING;
 
+    }
+    public void incrementMissedTurns() {
+        missedTurns++;
+    }
+    public void resetMissedTurns() {
+        missedTurns = 0;
+    }
+    public boolean isKickRequired() {
+        return missedTurns >= 3;
     }
 
     @Override
