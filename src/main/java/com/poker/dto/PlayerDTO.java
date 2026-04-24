@@ -36,7 +36,12 @@ public class PlayerDTO {
     @JsonProperty("round_contribution")
     private long roundContribution;
 
+    @JsonProperty("amount_to_call")
+    private long amountToCall;
+
     public static PlayerDTO fromPlayer(Player player, long currentMaxBet) {
+        long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
+
         List<String> cards = player.getHand().stream()
                 .map(Card::getShortName)
                 .toList();
@@ -49,7 +54,8 @@ public class PlayerDTO {
                 cards,
                 player.getStatus().name(),
                 player.canAct(),
-                player.getRoundContribution()
+                player.getRoundContribution(),
+                toCall
         );
     }
 }
