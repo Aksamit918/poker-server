@@ -1,24 +1,32 @@
 package com.poker.controller;
 
+import com.poker.dto.LoginResponseDTO;
+import com.poker.model.Player;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.poker.model.Table;
+import java.util.Optional;
+import com.poker.service.TableManager;
 
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
 public class AuthController {
     private final AccountService accountService;
-
-    public AuthController(AccountService accountService) {
-        this.accountService = accountService;
-    }
+    private final TableManager tableManager;
 
     public record RegisterRequest(String login, String password, String nickname) {}
     public record LoginRequest(String login, String password) {}
     public record ChangeNicknameRequest(String newNickname) {}
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
+    public record LogoutRequest(String userId, String token) {}
+
+    public AuthController(AccountService accountService, TableManager tableManager) {
+        this.accountService = accountService;
+        this.tableManager = tableManager;
+    }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -37,10 +45,32 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         try {
-            Account account = accountService.login(request.login(), request.password());
-            return ResponseEntity.ok(account);
+            LoginResponseDTO response = accountService.login(request.login(), request.password());
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(401).body(e.getMessage()); // 401 Unauthorized
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestBody LogoutRequest request) {
+        try {
+            Long uId = Long.parseLong(request.userId());
+
+            accountService.validateSession(uId, request.token());
+
+            String tableId = tableManager.getTableIdByPlayer(request.userId());
+            if (tableId != null) {
+                Table table = tableManager.getTable(tableId);
+                Optional<Player> player = table.findPlayerById(request.userId());
+                player.ifPresent(table::leaveTable);
+            }
+
+            accountService.logout(uId);
+
+            return ResponseEntity.ok("Logged out successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(e.getMessage());
         }
     }
 

@@ -25,7 +25,7 @@ public class TableManager {
         this.tableRepository = tableRepository;
     }
 
-    public String createTable(String name, int smallBlind, int bigBlind, int minPlayersNum, int maxPlayersNum) {
+    public String createTable(String name, long smallBlind, long bigBlind, int minPlayersNum, int maxPlayersNum) {
         String tableIdStr;
 
         do {
@@ -77,6 +77,9 @@ public class TableManager {
     public boolean isPlayerActive(String userId) {
         return activePlayers.containsKey(userId);
     }
+    public String getTableIdByPlayer(String userId) {
+        return activePlayers.get(userId);
+    }
 
     @PostConstruct
     public void initSystemTables() {
@@ -109,7 +112,7 @@ public class TableManager {
             Table table = tables.get(tableId);
             if (table != null && table.getPlayers().isEmpty()) {
                 tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
-                    if (!dbTable.isSystem()) {
+                    if (!dbTable.getIsSystem()) {
                         tables.remove(tableId);
                         tableRepository.delete(dbTable);
                     }

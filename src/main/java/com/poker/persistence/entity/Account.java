@@ -25,7 +25,7 @@ public class Account {
     private String nickname;
 
     @Column(name = "wallet_balance", nullable = false)
-    private long balance;
+    private Long balance;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

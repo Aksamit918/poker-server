@@ -1,5 +1,6 @@
 package com.poker.service;
 
+import com.poker.dto.LoginResponseDTO;
 import com.poker.exception.AccountNotFoundException;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.InvalidCredentialsException;
@@ -15,7 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AccountService {
@@ -23,6 +27,7 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final GameTableRepository gameTableRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final Map<Long, String> activeSessions = new ConcurrentHashMap<>();
 
     public AccountService(AccountRepository accountRepository,
                           TransactionRepository transactionRepository,
@@ -34,19 +39,35 @@ public class AccountService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    public void validateSession(Long userId, String token) {
+        String sessionToken = activeSessions.get(userId);
+
+        if (sessionToken == null || !sessionToken.equals(token)) {
+            throw new InvalidCredentialsException("Invalid or expired session. Please log in again.");
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<Account> searchAccounts(String name) {
         return accountRepository.findByNicknameContaining(name);
     }
 
     @Transactional
-    public Account login(String login, String password) {
+    public LoginResponseDTO login(String login, String password) {
         Account account = accountRepository.findByLogin(login)
                 .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
 
         if (!passwordEncoder.matches(password, account.getPassword())) {
             throw new InvalidCredentialsException("Invalid password");
         }
+
+        if (activeSessions.containsKey(account.getId())) {
+            throw new IllegalStateException("Already logged in");
+        }
+
+        String token = UUID.randomUUID().toString();
+
+        activeSessions.put(account.getId(), token);
 
         Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
         if (lastTx.isPresent()) {
@@ -59,7 +80,11 @@ public class AccountService {
             }
         }
 
-        return account;
+        return LoginResponseDTO.fromAccount(account, token);
+    }
+
+    public void logout(Long userId) {
+        activeSessions.remove(userId);
     }
 
     @Transactional

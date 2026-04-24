@@ -55,7 +55,6 @@ public class Table {
         this.activePlayerIdx = -1;
         this.leaveListener = leaveListener;
     }
-
     private void setupPositions() {
         if (this.dealerIdx == -1) {
             this.dealerIdx = players.get(new Random().nextInt(players.size())).getSeatIndex();
@@ -180,10 +179,9 @@ public class Table {
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
-        player.setRoundContribution(actualPaid);
         updateStatusAfterBet(player);
     }
-    private void processRaise(Player player, int newMaxBet) {
+    private void processRaise(Player player, long newMaxBet) {
         if (newMaxBet <= currentMaxBet) {
             throw new IllegalRaiseException("New Max Bet must exceed Current Max Bet");
         }
@@ -192,7 +190,6 @@ public class Table {
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
-        player.setRoundContribution(actualPaid);
         updateStatusAfterBet(player);
         this.currentMaxBet = newMaxBet;
         players.stream()
@@ -224,7 +221,6 @@ public class Table {
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
-        player.setRoundContribution(actualPaid);
 
         if (player.getChips().get() == 0) {
             player.setStatus(PlayerStatus.ALL_IN);

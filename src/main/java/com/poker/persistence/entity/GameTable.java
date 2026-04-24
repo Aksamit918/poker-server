@@ -19,25 +19,25 @@ public class GameTable {
     private String name;
 
     @Column(name = "small_blind", nullable = false)
-    private int smallBlind;
+    private Long smallBlind;
 
     @Column(name = "big_blind", nullable = false)
-    private int bigBlind;
+    private Long bigBlind;
 
     @Column(name = "min_players", nullable = false)
-    private int minPlayers;
+    private Integer minPlayers;
 
     @Column(name = "max_players", nullable = false)
-    private int maxPlayers;
+    private Integer maxPlayers;
 
     @Column(name = "is_private", nullable = false)
-    private boolean isPrivate;
+    private Boolean isPrivate;
 
     @Column(name = "passcode", length = 50)
     private String passcode;
 
     @Column(name = "is_system", nullable = false)
-    private boolean isSystem;
+    private Boolean isSystem;
 
     @ManyToOne
     @JoinColumn(name = "creator_id")
@@ -46,7 +46,7 @@ public class GameTable {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public GameTable(UUID id, String name, int smallBlind, int bigBlind, int minPlayers, int maxPlayers, boolean isPrivate, String passcode, boolean isSystem, Account creator) {
+    public GameTable(UUID id, String name, long smallBlind, long bigBlind, int minPlayers, int maxPlayers, boolean isPrivate, String passcode, boolean isSystem, Account creator) {
         this.id = id;
         this.name = name;
         this.smallBlind = smallBlind;

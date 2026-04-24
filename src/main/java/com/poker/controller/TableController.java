@@ -56,19 +56,21 @@ public class TableController {
 
     @PostMapping("/{id}/join")
     public TableDetailsDTO joinTable(@PathVariable String id, @RequestBody JoinRequestDTO request) {
+        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+
         Table table = tableManager.getTable(id);
 
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        if (tableManager.isPlayerActive(request.getUserId())) {
+        if (tableManager.isPlayerActive(request.userId())) {
             throw new IllegalTableStateException("You are already playing at a table!");
         }
 
         int seatIndex = table.getFreeSeat();
 
-        long userBuyIn = request.getChips();
+        long userBuyIn = request.chips();
 
         if (userBuyIn < table.getMinBuyIn()) {
             throw new ChipAmountException("Insufficient buy-in. Minimum required: " + table.getMinBuyIn());
@@ -77,7 +79,7 @@ public class TableController {
             throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + table.getMaxBuyIn());
         }
 
-        Long userId = Long.parseLong(request.getUserId());
+        Long userId = Long.parseLong(request.userId());
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
 
         Account account = accountService.findById(userId);
@@ -90,20 +92,22 @@ public class TableController {
         );
 
         table.joinTable(newPlayer);
-        tableManager.registerPlayer(request.getUserId(), id);
+        tableManager.registerPlayer(request.userId(), id);
 
         return TableDetailsDTO.createTableDetailsDTO(table);
     }
 
     @PostMapping("/{id}/leave")
     public TableDetailsDTO leaveTable(@PathVariable String id, @RequestBody LeaveRequestDTO request) {
+        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+
         Table table = tableManager.getTable(id);
 
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Player player = table.findPlayerById(request.getUserId())
+        Player player = table.findPlayerById(request.userId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
         table.leaveTable(player);
@@ -113,15 +117,17 @@ public class TableController {
 
     @PostMapping("/{id}/rebuy")
     public TableDetailsDTO rebuy(@PathVariable String id, @RequestBody RebuyRequestDTO request) {
+        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+
         Table table = tableManager.getTable(id);
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Player player = table.findPlayerById(request.getUserId())
+        Player player = table.findPlayerById(request.userId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found at this table"));
 
-        long amount = request.getAmount();
+        long amount = request.amount();
 
         long currentChips = player.getChips().get();
         if (currentChips + amount > table.getMaxBuyIn()) {
@@ -140,19 +146,21 @@ public class TableController {
 
     @PostMapping("/{id}/action")
     public TableDetailsDTO action(@PathVariable String id, @RequestBody ActionRequestDTO request) {
+        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+
         Table table = tableManager.getTable(id);
 
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Optional<Player> player = table.findPlayerById(request.getUserId());
+        Optional<Player> player = table.findPlayerById(request.userId());
 
         if  (player.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found");
         }
 
-        PlayerAction action = new PlayerAction(request.getType(), request.getAmount());
+        PlayerAction action = new PlayerAction(request.type(), request.amount());
         table.handleAction(player.get(), action);
 
         return TableDetailsDTO.createTableDetailsDTO(table);
@@ -161,11 +169,11 @@ public class TableController {
     @PostMapping
     public IdResponseDTO createTable(@Valid @RequestBody CreateTableRequestDTO request) {
         String newId = tableManager.createTable(
-                request.getName(),
-                request.getSmallBlind(),
-                request.getBigBlind(),
-                request.getMinPlayersNum(),
-                request.getMaxPlayersNum()
+                request.name(),
+                request.smallBlind(),
+                request.bigBlind(),
+                request.minPlayersNum(),
+                request.maxPlayersNum()
         );
         return new IdResponseDTO(newId);
     }

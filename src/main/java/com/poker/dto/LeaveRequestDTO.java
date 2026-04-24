@@ -4,5 +4,5 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record LeaveRequestDTO(
         @JsonProperty("user_id") String userId,
-        String token // Чтобы подтвердить личность при выходе
+        String token
 ) {}
