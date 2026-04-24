@@ -14,7 +14,7 @@ public class TableDetailsDTO {
     @JsonProperty("table_id")
     private String tableId;
 
-    @JsonProperty("name")
+    @JsonProperty("table_name")
     private String name;
 
     @JsonProperty("pot")

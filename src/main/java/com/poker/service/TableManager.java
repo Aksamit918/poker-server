@@ -1,5 +1,6 @@
 package com.poker.service;
 
+import com.poker.exception.IllegalTableStateException;
 import com.poker.model.*;
 import com.poker.persistence.entity.GameTable;
 import com.poker.persistence.repository.GameTableRepository;
@@ -15,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class TableManager {
     private final Map<String, Table> tables = new ConcurrentHashMap<>();
+    private final Map<String, String> activePlayers = new ConcurrentHashMap<>();
     private final AccountService accountService;
     private final GameTableRepository tableRepository;
 
@@ -63,6 +65,18 @@ public class TableManager {
     public List<Table> getAllTables() {
         return new ArrayList<>(tables.values());
     }
+    public void registerPlayer(String userId, String tableId) {
+        if (activePlayers.containsKey(userId)) {
+            throw new IllegalTableStateException("You are already playing at another table!");
+        }
+        activePlayers.put(userId, tableId);
+    }
+    public void unregisterPlayer(String userId) {
+        activePlayers.remove(userId);
+    }
+    public boolean isPlayerActive(String userId) {
+        return activePlayers.containsKey(userId);
+    }
 
     @PostConstruct
     public void initSystemTables() {
@@ -89,6 +103,8 @@ public class TableManager {
     private PlayerLeaveListener createLeaveListener(String tableId) {
         return (userId, chips) -> {
             accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
+
+            unregisterPlayer(userId);
 
             Table table = tables.get(tableId);
             if (table != null && table.getPlayers().isEmpty()) {

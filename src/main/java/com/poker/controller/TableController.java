@@ -2,6 +2,7 @@ package com.poker.controller;
 
 import com.poker.dto.*;
 import com.poker.exception.ChipAmountException;
+import com.poker.exception.IllegalTableStateException;
 import com.poker.model.Player;
 import com.poker.model.PlayerAction;
 import com.poker.model.Table;
@@ -61,6 +62,10 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
+        if (tableManager.isPlayerActive(request.getUserId())) {
+            throw new IllegalTableStateException("You are already playing at a table!");
+        }
+
         int seatIndex = table.getFreeSeat();
 
         long userBuyIn = request.getChips();
@@ -85,6 +90,7 @@ public class TableController {
         );
 
         table.joinTable(newPlayer);
+        tableManager.registerPlayer(request.getUserId(), id);
 
         return TableDetailsDTO.createTableDetailsDTO(table);
     }

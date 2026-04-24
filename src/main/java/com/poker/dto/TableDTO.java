@@ -11,7 +11,7 @@ public class TableDTO {
     @JsonProperty("table_id")
     private String id;
 
-    @JsonProperty("name")
+    @JsonProperty("table_name")
     private String name;
 
     @JsonProperty("min_players_num")
