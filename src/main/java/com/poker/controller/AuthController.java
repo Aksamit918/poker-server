@@ -1,5 +1,6 @@
 package com.poker.controller;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.dto.LoginResponseDTO;
 import com.poker.exception.InvalidCredentialsException;
 import com.poker.model.Player;
@@ -22,7 +23,9 @@ public class AuthController {
     public record LoginRequest(String login, String password) {}
     public record ChangeNicknameRequest(String newNickname) {}
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
-    public record LogoutRequest(String userId) {}
+    public record LogoutRequest(
+            @JsonProperty("user_id") String userId
+    ) {}
 
     public AuthController(AccountService accountService, TableManager tableManager) {
         this.accountService = accountService;

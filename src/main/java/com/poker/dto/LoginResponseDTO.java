@@ -7,14 +7,17 @@ public record LoginResponseDTO(
         @JsonProperty("user_id") String userId,
         String login,
         String nickname,
-        @JsonProperty("wallet_balance") long walletBalance
+        @JsonProperty("wallet_balance")
+        long walletBalance,
+        String token
 ) {
     public static LoginResponseDTO fromAccount(Account account, String token) {
         return new LoginResponseDTO(
                 String.valueOf(account.getId()),
                 account.getLogin(),
                 account.getNickname(),
-                account.getBalance()
+                account.getBalance(),
+                token
         );
     }
 }
