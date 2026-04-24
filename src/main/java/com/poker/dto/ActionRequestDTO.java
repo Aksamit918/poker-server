@@ -6,6 +6,5 @@ import com.poker.model.ActionType;
 public record ActionRequestDTO(
         @JsonProperty("user_id") String userId,
         ActionType type,
-        long amount,
-        String token
+        long amount
 ) {}

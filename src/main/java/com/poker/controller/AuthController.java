@@ -1,6 +1,7 @@
 package com.poker.controller;
 
 import com.poker.dto.LoginResponseDTO;
+import com.poker.exception.InvalidCredentialsException;
 import com.poker.model.Player;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
@@ -21,11 +22,19 @@ public class AuthController {
     public record LoginRequest(String login, String password) {}
     public record ChangeNicknameRequest(String newNickname) {}
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
-    public record LogoutRequest(String userId, String token) {}
+    public record LogoutRequest(String userId) {}
 
     public AuthController(AccountService accountService, TableManager tableManager) {
         this.accountService = accountService;
         this.tableManager = tableManager;
+    }
+
+    private String extractToken(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new InvalidCredentialsException("Missing or invalid Authorization header");
+        }
+
+        return authHeader.substring(7);
     }
 
     @PostMapping("/register")
@@ -53,11 +62,13 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestBody LogoutRequest request) {
+    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader,
+                                    @RequestBody LogoutRequest request) {
         try {
+            String token = extractToken(authHeader);
             Long uId = Long.parseLong(request.userId());
 
-            accountService.validateSession(uId, request.token());
+            accountService.validateSession(uId, token);
 
             String tableId = tableManager.getTableIdByPlayer(request.userId());
             if (tableId != null) {
@@ -67,7 +78,6 @@ public class AuthController {
             }
 
             accountService.logout(uId);
-
             return ResponseEntity.ok("Logged out successfully");
         } catch (Exception e) {
             return ResponseEntity.status(401).body(e.getMessage());
@@ -75,8 +85,13 @@ public class AuthController {
     }
 
     @PatchMapping("/{id}/nickname")
-    public ResponseEntity<?> changeNickname(@PathVariable Long id, @RequestBody ChangeNicknameRequest request) {
+    public ResponseEntity<?> changeNickname(@RequestHeader("Authorization") String authHeader,
+                                            @PathVariable Long id,
+                                            @RequestBody ChangeNicknameRequest request) {
         try {
+            String token = extractToken(authHeader);
+            accountService.validateSession(id, token);
+
             Account updated = accountService.changeNickname(id, request.newNickname());
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
@@ -85,8 +100,13 @@ public class AuthController {
     }
 
     @PatchMapping("/{id}/password")
-    public ResponseEntity<?> changePassword(@PathVariable Long id, @RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<?> changePassword(@RequestHeader("Authorization") String authHeader,
+                                            @PathVariable Long id,
+                                            @RequestBody ChangePasswordRequest request) {
         try {
+            String token = extractToken(authHeader);
+            accountService.validateSession(id, token);
+
             accountService.changePassword(id, request.oldPassword(), request.newPassword());
             return ResponseEntity.ok("Password updated successfully");
         } catch (Exception e) {
@@ -95,12 +115,16 @@ public class AuthController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAccount(@PathVariable Long id) {
+    public ResponseEntity<?> deleteAccount(@RequestHeader("Authorization") String authHeader,
+                                           @PathVariable Long id) {
         try {
+            String token = extractToken(authHeader);
+            accountService.validateSession(id, token);
+
             accountService.deleteAccount(id);
             return ResponseEntity.ok("Account deleted successfully");
         } catch (Exception e) {
-            return ResponseEntity.status(404).body(e.getMessage());
+            return ResponseEntity.status(403).body(e.getMessage());
         }
     }
 }

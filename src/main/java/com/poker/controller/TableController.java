@@ -3,6 +3,7 @@ package com.poker.controller;
 import com.poker.dto.*;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.IllegalTableStateException;
+import com.poker.exception.InvalidCredentialsException;
 import com.poker.model.Player;
 import com.poker.model.PlayerAction;
 import com.poker.model.Table;
@@ -34,6 +35,14 @@ public class TableController {
         this.accountService = accountService;
     }
 
+    private String extractToken(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new InvalidCredentialsException("Missing or invalid Authorization header");
+        }
+
+        return authHeader.substring(7);
+    }
+
     @GetMapping
     public List<TableDTO> getLobby() {
         Collection<Table> tables = tableManager.getAllTables();
@@ -55,8 +64,12 @@ public class TableController {
     }
 
     @PostMapping("/{id}/join")
-    public TableDetailsDTO joinTable(@PathVariable String id, @RequestBody JoinRequestDTO request) {
-        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+    public TableDetailsDTO joinTable(@RequestHeader("Authorization") String authHeader,
+                                     @PathVariable String id,
+                                     @RequestBody JoinRequestDTO request) {
+        String token = extractToken(authHeader);
+
+        accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
 
@@ -98,8 +111,12 @@ public class TableController {
     }
 
     @PostMapping("/{id}/leave")
-    public TableDetailsDTO leaveTable(@PathVariable String id, @RequestBody LeaveRequestDTO request) {
-        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+    public TableDetailsDTO leaveTable(@RequestHeader("Authorization") String authHeader,
+                                      @PathVariable String id,
+                                      @RequestBody LeaveRequestDTO request) {
+        String token = extractToken(authHeader);
+
+        accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
 
@@ -116,8 +133,12 @@ public class TableController {
     }
 
     @PostMapping("/{id}/rebuy")
-    public TableDetailsDTO rebuy(@PathVariable String id, @RequestBody RebuyRequestDTO request) {
-        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+    public TableDetailsDTO rebuy(@RequestHeader("Authorization") String authHeader,
+                                 @PathVariable String id,
+                                 @RequestBody RebuyRequestDTO request) {
+        String token = extractToken(authHeader);
+
+        accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
         if (table == null) {
@@ -145,8 +166,12 @@ public class TableController {
     }
 
     @PostMapping("/{id}/action")
-    public TableDetailsDTO action(@PathVariable String id, @RequestBody ActionRequestDTO request) {
-        accountService.validateSession(Long.parseLong(request.userId()), request.token());
+    public TableDetailsDTO action(@RequestHeader("Authorization") String authHeader,
+                                  @PathVariable String id,
+                                  @RequestBody ActionRequestDTO request) {
+        String token = extractToken(authHeader);
+
+        accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
 
