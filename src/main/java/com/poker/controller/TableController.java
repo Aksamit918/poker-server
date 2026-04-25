@@ -133,11 +133,10 @@ public class TableController {
     }
 
     @PostMapping("/{id}/rebuy")
-    public TableDetailsDTO rebuy(@RequestHeader("Authorization") String authHeader,
-                                 @PathVariable String id,
-                                 @RequestBody RebuyRequestDTO request) {
+    public RebuyResponseDTO rebuy(@RequestHeader("Authorization") String authHeader,
+                                  @PathVariable String id,
+                                  @RequestBody RebuyRequestDTO request) {
         String token = extractToken(authHeader);
-
         accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
@@ -146,12 +145,11 @@ public class TableController {
         }
 
         Player player = table.findPlayerById(request.userId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found at this table"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found"));
 
         long amount = request.amount();
 
-        long currentChips = player.getChips().get();
-        if (currentChips + amount > table.getMaxBuyIn()) {
+        if (player.getChips().get() + amount > table.getMaxBuyIn()) {
             throw new ChipAmountException("Rebuy exceeds maximum table limit");
         }
 
@@ -162,7 +160,10 @@ public class TableController {
 
         table.rebuy(player, amount, realWalletBalance);
 
-        return TableDetailsDTO.createTableDetailsDTO(table);
+        return new RebuyResponseDTO(
+                player.getChips().get(),
+                realWalletBalance
+        );
     }
 
     @PostMapping("/{id}/action")
