@@ -3,7 +3,10 @@ package com.poker.persistence.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -43,8 +46,9 @@ public class GameTable {
     @JoinColumn(name = "creator_id")
     private Account creator;
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private OffsetDateTime createdAt;
 
     public GameTable(UUID id, String name, long smallBlind, long bigBlind, int minPlayers, int maxPlayers, boolean isPrivate, String passcode, boolean isSystem, Account creator) {
         this.id = id;
@@ -57,6 +61,5 @@ public class GameTable {
         this.passcode = passcode;
         this.isSystem = isSystem;
         this.creator = creator;
-        this.createdAt = LocalDateTime.now();
     }
 }

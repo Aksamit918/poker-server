@@ -3,8 +3,9 @@ package com.poker.persistence.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "accounts")
@@ -27,8 +28,12 @@ public class Account {
     @Column(name = "wallet_balance", nullable = false)
     private Long balance;
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "last_bonus_at", nullable = true)
+    private OffsetDateTime lastBonusAt;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private OffsetDateTime createdAt;
 
     public Account(String login, String password, String nickname) {
         this.login =  login;

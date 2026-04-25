@@ -4,7 +4,10 @@ import com.poker.model.TransactionType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "transactions")
@@ -31,14 +34,14 @@ public class Transaction {
     @Column(name = "type", nullable = false)
     private TransactionType type;
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private OffsetDateTime createdAt;
 
     public Transaction(Account account, GameTable gameTable, Long amount, TransactionType type) {
         this.account = account;
         this.gameTable = gameTable;
         this.amount = amount;
         this.type = type;
-        this.createdAt = LocalDateTime.now();
     }
 }
