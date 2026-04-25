@@ -61,10 +61,6 @@ public class AccountService {
             throw new InvalidCredentialsException("Invalid password");
         }
 
-        if (activeSessions.containsKey(account.getId())) {
-            throw new IllegalStateException("Already logged in");
-        }
-
         String token = UUID.randomUUID().toString();
 
         activeSessions.put(account.getId(), token);

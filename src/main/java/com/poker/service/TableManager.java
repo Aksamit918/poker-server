@@ -25,6 +25,17 @@ public class TableManager {
         this.tableRepository = tableRepository;
     }
 
+    public void forceKickPlayer(String userId) {
+        String tableId = activePlayers.get(userId);
+
+        if (tableId != null) {
+            Table table = getTable(tableId);
+            if (table != null) {
+                table.findPlayerById(userId).ifPresent(table::leaveTable);
+            }
+        }
+    }
+
     public String createTable(String name, long smallBlind, long bigBlind, int minPlayersNum, int maxPlayersNum) {
         String tableIdStr;
 
