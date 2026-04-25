@@ -10,6 +10,7 @@ public record TableDTO(
         @JsonProperty("max_players_num") int maxPlayersNum,
         @JsonProperty("blinds") String blinds,
         @JsonProperty("min_buy_in") long minBuyIn,
+        @JsonProperty("max_buy_in") long maxBuyIn,
         @JsonProperty("current_players") int currentPlayers,
         @JsonProperty("max_players") int maxPlayers,
         String state
@@ -22,6 +23,7 @@ public record TableDTO(
                 table.getMAX_PLAYERS(),
                 table.getSmallBlindBet() + "/" + table.getBigBlindBet(),
                 table.getMinBuyIn(),
+                table.getMaxBuyIn(),
                 table.getPlayerCount(),
                 table.getMaxPlayers(),
                 table.getState().name()
