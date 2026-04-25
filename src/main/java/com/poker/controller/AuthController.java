@@ -43,12 +43,12 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         try {
-            Account newAccount = accountService.register(
+            LoginResponseDTO response = accountService.register(
                     request.login(),
                     request.password(),
                     request.nickname()
             );
-            return ResponseEntity.ok(newAccount);
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

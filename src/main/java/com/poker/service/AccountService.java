@@ -88,7 +88,7 @@ public class AccountService {
     }
 
     @Transactional
-    public Account register(String login, String password, String nickname) {
+    public LoginResponseDTO register(String login, String password, String nickname) {
         if (accountRepository.findByLogin(login).isPresent()) {
             throw new IllegalArgumentException("Login is already taken");
         }
@@ -100,7 +100,13 @@ public class AccountService {
         String encodedPassword = passwordEncoder.encode(password);
 
         Account account = new Account(login, encodedPassword, nickname);
-        return accountRepository.save(account);
+        account = accountRepository.save(account);
+
+        String token = UUID.randomUUID().toString();
+
+        activeSessions.put(account.getId(), token);
+
+        return LoginResponseDTO.fromAccount(account, token);
     }
 
     @Transactional(readOnly = true)
