@@ -8,15 +8,17 @@ public record LoginResponseDTO(
         String login,
         String nickname,
         @JsonProperty("wallet_balance") long walletBalance,
-        String token
+        String token,
+        @JsonProperty("daily_bonus_received") boolean dailyBonusReceived
 ) {
-    public static LoginResponseDTO fromAccount(Account account, String token) {
+    public static LoginResponseDTO fromAccount(Account account, String token, boolean dailyBonusReceived) {
         return new LoginResponseDTO(
                 String.valueOf(account.getId()),
                 account.getLogin(),
                 account.getNickname(),
                 account.getBalance(),
-                token
+                token,
+                dailyBonusReceived
         );
     }
 }

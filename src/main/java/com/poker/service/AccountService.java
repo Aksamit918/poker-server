@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +29,8 @@ public class AccountService {
     private final GameTableRepository gameTableRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final Map<Long, String> activeSessions = new ConcurrentHashMap<>();
+
+    private final long DAILY_BONUS_AMOUNT = 5000L;
 
     public AccountService(AccountRepository accountRepository,
                           TransactionRepository transactionRepository,
@@ -45,6 +48,29 @@ public class AccountService {
         if (sessionToken == null || !sessionToken.equals(token)) {
             throw new InvalidCredentialsException("Invalid or expired session. Please log in again.");
         }
+    }
+
+    private boolean processDailyBonus(Account account) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        boolean isFirstTime = (account.getLastBonusAt() == null);
+
+        boolean isTimePassed = !isFirstTime && java.time.Duration.between(account.getLastBonusAt(), now).toHours() >= 24;
+
+        if (isFirstTime || isTimePassed) {
+            account.setBalance(account.getBalance() + DAILY_BONUS_AMOUNT);
+            account.setLastBonusAt(now);
+
+            transactionRepository.save(new Transaction(
+                    account,
+                    null,
+                    DAILY_BONUS_AMOUNT,
+                    TransactionType.DAILY_BONUS)
+            );
+            return true;
+        }
+
+        return false;
     }
 
     @Transactional(readOnly = true)
@@ -70,13 +96,15 @@ public class AccountService {
             if (lastTx.get().getType() == TransactionType.BUY_IN || lastTx.get().getType() == TransactionType.REBUY) {
                 long refundAmount = Math.abs(lastTx.get().getAmount());
                 account.setBalance(account.getBalance() + refundAmount);
-                accountRepository.save(account);
                 Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
                 transactionRepository.save(refundLog);
             }
         }
 
-        return LoginResponseDTO.fromAccount(account, token);
+        boolean bonusReceived = processDailyBonus(account);
+        accountRepository.save(account);
+
+        return LoginResponseDTO.fromAccount(account, token, bonusReceived);
     }
 
     public void logout(Long userId) {
@@ -102,7 +130,7 @@ public class AccountService {
 
         activeSessions.put(account.getId(), token);
 
-        return LoginResponseDTO.fromAccount(account, token);
+        return LoginResponseDTO.fromAccount(account, token, false);
     }
 
     @Transactional(readOnly = true)
