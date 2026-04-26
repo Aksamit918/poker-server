@@ -289,7 +289,17 @@ public class Table {
             }
 
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
-                startNewHand();
+                this.isTransitioning = true;
+
+                scheduler.schedule(() -> {
+                    synchronized (lock) {
+                        if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+                            startNewHand();
+                        } else {
+                            this.isTransitioning = false;
+                        }
+                    }
+                }, 3, TimeUnit.SECONDS);
             }
         }
     }
@@ -494,7 +504,17 @@ public class Table {
             players.add(player);
 
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
-                startNewHand();
+                this.isTransitioning = true;
+
+                scheduler.schedule(() -> {
+                    synchronized (lock) {
+                        if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+                            startNewHand();
+                        } else {
+                            this.isTransitioning = false;
+                        }
+                    }
+                }, 3, TimeUnit.SECONDS);
             }
         }
     }
