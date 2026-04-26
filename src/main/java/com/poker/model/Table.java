@@ -373,7 +373,7 @@ public class Table {
                     scheduleNextHand(showdownDelay);
                 }
             }
-        }, 5, TimeUnit.SECONDS);
+        }, 3, TimeUnit.SECONDS);
     }
     private void finishHandPrematurely() {
         stopTimer();

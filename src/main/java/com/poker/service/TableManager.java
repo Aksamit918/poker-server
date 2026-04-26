@@ -1,7 +1,9 @@
 package com.poker.service;
 
+import com.poker.dto.TableDetailsDTO;
 import com.poker.exception.IllegalTableStateException;
 import com.poker.model.*;
+import com.poker.persistence.entity.Account;
 import com.poker.persistence.entity.GameTable;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.util.PlayerLeaveListener;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class TableManager {
@@ -36,9 +39,13 @@ public class TableManager {
         }
     }
 
-    public String createTable(String name, long smallBlind, long bigBlind, int minPlayersNum, int maxPlayersNum) {
-        String tableIdStr;
+    public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum, int maxPlayersNum, String userId, long chips) {
 
+        if (activePlayers.containsKey(userId)) {
+            throw new IllegalTableStateException("You are already playing at a table!");
+        }
+
+        String tableIdStr;
         do {
             tableIdStr = UUID.randomUUID().toString();
         } while (tables.containsKey(tableIdStr));
@@ -57,7 +64,6 @@ public class TableManager {
                 false,
                 null
         );
-
         tableRepository.save(dbTable);
 
         PlayerLeaveListener listener = createLeaveListener(tableIdStr);
@@ -65,7 +71,33 @@ public class TableManager {
 
         tables.put(tableIdStr, newTable);
 
-        return tableIdStr;
+        try {
+            Long uId = Long.parseLong(userId);
+            accountService.withdrawFromWallet(uId, chips, tableIdStr, TransactionType.BUY_IN);
+
+            Account account = accountService.findById(uId);
+
+            int seatIndex = newTable.getFreeSeat();
+
+            Player creator = new Player(
+                    userId,
+                    account.getNickname(),
+                    seatIndex,
+                    new AtomicLong(account.getBalance()),
+                    new AtomicLong(chips)
+            );
+
+            newTable.joinTable(creator);
+
+            activePlayers.put(userId, tableIdStr);
+
+        } catch (Exception e) {
+            tables.remove(tableIdStr);
+            tableRepository.delete(dbTable);
+            throw e;
+        }
+
+        return TableDetailsDTO.createTableDetailsDTO(newTable);
     }
     public Table getTable(String id) {
         return tables.get(id);
@@ -121,11 +153,16 @@ public class TableManager {
             unregisterPlayer(userId);
 
             Table table = tables.get(tableId);
-            if (table != null && table.getPlayers().isEmpty()) {
+
+            if (table != null && table.getPlayerCount() == 0) {
+
                 tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
                     if (!dbTable.getIsSystem()) {
+
                         tables.remove(tableId);
                         tableRepository.delete(dbTable);
+
+                        System.out.println("DEBUG: Custom table [" + dbTable.getName() + "] closed and deleted.");
                     }
                 });
             }

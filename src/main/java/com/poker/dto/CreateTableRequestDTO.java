@@ -9,6 +9,12 @@ public record CreateTableRequestDTO(
         @NotBlank
         String name,
 
+        @NotBlank
+        @JsonProperty("user_id")
+        String userId,
+
+        long chips,
+
         @Min(value = 2, message = "2 players minimum")
         @JsonProperty("min_players_num")
         int minPlayersNum,

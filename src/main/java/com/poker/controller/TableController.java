@@ -193,15 +193,22 @@ public class TableController {
     }
 
     @PostMapping
-    public IdResponseDTO createTable(@Valid @RequestBody CreateTableRequestDTO request) {
-        String newId = tableManager.createTable(
+    public TableDetailsDTO createTable(
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody CreateTableRequestDTO request) {
+
+        String token = extractToken(authHeader);
+        accountService.validateSession(Long.parseLong(request.userId()), token);
+
+        return tableManager.createTable(
                 request.name(),
                 request.smallBlind(),
                 request.bigBlind(),
                 request.minPlayersNum(),
-                request.maxPlayersNum()
+                request.maxPlayersNum(),
+                request.userId(),
+                request.chips()
         );
-        return new IdResponseDTO(newId);
     }
 
     @DeleteMapping("/{id}")
