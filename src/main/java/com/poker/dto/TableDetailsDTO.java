@@ -10,6 +10,8 @@ public record TableDetailsDTO(
         String tableId,
         @JsonProperty("table_name")
         String name,
+        @JsonProperty("min_buy_in") long minBuyIn,
+        @JsonProperty("max_buy_in") long maxBuyIn,
         long pot,
         @JsonProperty("dealer_seat")
         int dealerIdx,
@@ -36,7 +38,8 @@ public record TableDetailsDTO(
                 .map(p -> PlayerDTO.fromPlayer(p, currentMax))
                 .toList();
 
-        return new TableDetailsDTO(table.getId(), table.getName(), pot, dealerIdx, activePlayerIdx, cardStrings, playerDTOs, state);
+        return new TableDetailsDTO(table.getId(), table.getName(),table.getMinBuyIn(), table.getMaxBuyIn(),
+                pot, dealerIdx, activePlayerIdx, cardStrings, playerDTOs, state);
     }
 }
 
