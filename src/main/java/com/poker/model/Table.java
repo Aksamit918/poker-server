@@ -289,17 +289,7 @@ public class Table {
             }
 
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
-                this.isTransitioning = true;
-
-                scheduler.schedule(() -> {
-                    synchronized (lock) {
-                        if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
-                            startNewHand();
-                        } else {
-                            this.isTransitioning = false;
-                        }
-                    }
-                }, 3, TimeUnit.SECONDS);
+                startNewHand();
             }
         }
     }
