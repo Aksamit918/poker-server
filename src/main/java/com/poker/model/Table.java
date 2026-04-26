@@ -17,9 +17,10 @@ public class Table {
     private final PlayerLeaveListener leaveListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
-    private static final int TURN_TIMEOUT_SECONDS = 60;
+    private static final int TURN_TIMEOUT = 10;
     private final String id;
     private String name;
+    private volatile boolean isTransitioning = false;
     private final int MAX_PLAYERS;
     private final int MIN_PLAYERS;
     private final long minBuyIn;
@@ -275,15 +276,19 @@ public class Table {
                 .toList();
 
         if (survivors.size() == 1 && state != TableStates.WAITING_FOR_PLAYERS) {
+            this.isTransitioning = true;
             Player winner = survivors.get(0);
             winner.getChips().addAndGet(pot.get());
             pot.set(0);
+            this.isTransitioning = true;
             cleanupTable();
             scheduleNextHand();
             return;
         }
 
         stopTimer();
+
+        this.isTransitioning = true;
 
         scheduler.schedule(() -> {
             synchronized (lock) {
@@ -519,6 +524,7 @@ public class Table {
     }
     private void startTimer() {
         stopTimer();
+        this.isTransitioning = false;
 
         long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
         if (activeCount < 1 || state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) {
@@ -552,7 +558,7 @@ public class Table {
                     startTimer();
                 }
             }
-        }, TURN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }, TURN_TIMEOUT, TimeUnit.MINUTES);
     }
     private void cleanupTable() {
         communityCards.clear();
@@ -581,7 +587,6 @@ public class Table {
                 p.setStatus(PlayerStatus.WAITING);
             }
         }
-
         this.deck = new Deck();
         this.state = TableStates.WAITING_FOR_PLAYERS;
         this.activePlayerIdx = -1;
@@ -590,6 +595,10 @@ public class Table {
 
     public void handleAction(Player player, PlayerAction action) {
         synchronized (lock) {
+            if (isTransitioning) {
+                throw new IllegalTableStateException("Please wait, cards are being dealt.");
+            }
+
             if (!isPlayerTurn(player)) {
                 throw new NotYourTurnException("It is not your turn!");
             }
