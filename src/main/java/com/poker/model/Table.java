@@ -270,18 +270,16 @@ public class Table {
     }
     public void rebuy(Player player, long amount, long walletBalance) {
         synchronized (lock) {
-            if (state != TableStates.WAITING_FOR_PLAYERS) {
-                throw new IllegalTableStateException("Rebuy is not allowed while a hand is in progress");
-            }
-
             long currentChips = player.getChips().get();
-            if (currentChips + amount > maxBuyIn) {
+
+            long increasedChips = currentChips + amount;
+
+            if (increasedChips > maxBuyIn) {
                 throw new ChipAmountException("Rebuy amount exceeds the maximum table limit: " + maxBuyIn);
             }
 
-            long increasedChips = currentChips + amount;
-            if (increasedChips < minBuyIn) {
-                throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + minBuyIn);
+            if (increasedChips < bigBlindBet) {
+                throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + bigBlindBet);
             }
 
             player.getWalletBalance().set(walletBalance);

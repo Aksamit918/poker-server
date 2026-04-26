@@ -160,7 +160,11 @@ public class TableController {
         long amount = request.amount();
 
         if (player.getChips().get() + amount > table.getMaxBuyIn()) {
-            throw new ChipAmountException("Rebuy exceeds maximum table limit");
+            throw new ChipAmountException("Rebuy amount exceeds the maximum table limit: " + table.getMaxBuyIn());
+        }
+
+        if (player.getChips().get() + amount < table.getBigBlindBet()) {
+            throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + table.getBigBlindBet());
         }
 
         accountService.withdrawFromWallet(Long.parseLong(player.getUserId()), amount, id, TransactionType.REBUY);
