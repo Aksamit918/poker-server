@@ -20,6 +20,8 @@ public class Table {
     private static final int TURN_TIMEOUT = 10;
     private final String id;
     private String name;
+    private final boolean isPrivate;
+    private final String passcode;
     private volatile boolean isTransitioning = false;
     private final int MAX_PLAYERS;
     private final int MIN_PLAYERS;
@@ -38,9 +40,11 @@ public class Table {
     private final long smallBlindBet;
     private final long bigBlindBet;
     public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
-                 PlayerLeaveListener leaveListener) {
+                 boolean isPrivate, String passcode, PlayerLeaveListener leaveListener) {
         this.id = id;
         this.name = name;
+        this.isPrivate = isPrivate;
+        this.passcode = passcode;
         this.MIN_PLAYERS = MIN_PLAYERS;
         this.MAX_PLAYERS = MAX_PLAYERS;
         this.players = new CopyOnWriteArrayList<>();
@@ -689,6 +693,12 @@ public class Table {
     }
     public String getName() {
         return name;
+    }
+    public boolean isPrivate() {
+        return isPrivate;
+    }
+    public String getPasscode() {
+        return passcode;
     }
     public int getFreeSeat() {
         Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());

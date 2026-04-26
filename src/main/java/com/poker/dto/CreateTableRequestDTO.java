@@ -9,6 +9,8 @@ public record CreateTableRequestDTO(
         @NotBlank
         String name,
 
+        String passcode,
+
         @NotBlank
         @JsonProperty("user_id")
         String userId,

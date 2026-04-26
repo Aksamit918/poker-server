@@ -39,7 +39,8 @@ public class TableManager {
         }
     }
 
-    public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum, int maxPlayersNum, String userId, long chips) {
+    public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum,
+                                       int maxPlayersNum, String userId, long chips, String passcode) {
 
         if (activePlayers.containsKey(userId)) {
             throw new IllegalTableStateException("You are already playing at a table!");
@@ -52,6 +53,8 @@ public class TableManager {
 
         UUID tableUuid = UUID.fromString(tableIdStr);
 
+        boolean isPrivate = passcode != null && !passcode.isEmpty();
+
         GameTable dbTable = new GameTable(
                 tableUuid,
                 name,
@@ -59,15 +62,20 @@ public class TableManager {
                 bigBlind,
                 minPlayersNum,
                 maxPlayersNum,
-                false,
-                null,
+                isPrivate,
+                passcode,
                 false,
                 null
         );
+
         tableRepository.save(dbTable);
 
         PlayerLeaveListener listener = createLeaveListener(tableIdStr);
-        Table newTable = new Table(tableIdStr, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum, listener);
+
+        Table newTable = new Table(
+                tableIdStr, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
+                isPrivate, passcode, listener
+        );
 
         tables.put(tableIdStr, newTable);
 
@@ -76,7 +84,6 @@ public class TableManager {
             accountService.withdrawFromWallet(uId, chips, tableIdStr, TransactionType.BUY_IN);
 
             Account account = accountService.findById(uId);
-
             int seatIndex = newTable.getFreeSeat();
 
             Player creator = new Player(
@@ -88,7 +95,6 @@ public class TableManager {
             );
 
             newTable.joinTable(creator);
-
             activePlayers.put(userId, tableIdStr);
 
         } catch (Exception e) {
@@ -138,6 +144,8 @@ public class TableManager {
                     dbTable.getBigBlind(),
                     dbTable.getMinPlayers(),
                     dbTable.getMaxPlayers(),
+                    dbTable.getIsPrivate(),
+                    dbTable.getPasscode(),
                     listener
             );
 

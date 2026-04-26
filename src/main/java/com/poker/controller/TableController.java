@@ -64,15 +64,15 @@ public class TableController {
     }
 
     @PostMapping("/{id}/join")
-    public TableDetailsDTO joinTable(@RequestHeader("Authorization") String authHeader,
-                                     @PathVariable String id,
-                                     @RequestBody JoinRequestDTO request) {
-        String token = extractToken(authHeader);
+    public TableDetailsDTO joinTable(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable String id,
+            @RequestBody JoinRequestDTO request) {
 
+        String token = extractToken(authHeader);
         accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
-
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
@@ -81,25 +81,35 @@ public class TableController {
             throw new IllegalTableStateException("You are already playing at a table!");
         }
 
-        int seatIndex = table.getFreeSeat();
+        if (table.isPrivate()) {
+            if (request.passcode() == null || request.passcode().isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Password required");
+            }
+
+            if (!table.getPasscode().equals(request.passcode())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Wrong password");
+            }
+        }
 
         long userBuyIn = request.chips();
 
         if (userBuyIn < table.getMinBuyIn()) {
-            throw new ChipAmountException("Insufficient buy-in. Minimum required: " + table.getMinBuyIn());
+            throw new ChipAmountException("Insufficient buy-in...");
         }
         if (userBuyIn > table.getMaxBuyIn()) {
-            throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + table.getMaxBuyIn());
+            throw new ChipAmountException("Buy-in exceeds limit...");
         }
 
         Long userId = Long.parseLong(request.userId());
+
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
 
         Account account = accountService.findById(userId);
+
         Player newPlayer = new Player(
                 String.valueOf(account.getId()),
                 account.getNickname(),
-                seatIndex,
+                table.getFreeSeat(),
                 new AtomicLong(account.getBalance()),
                 new AtomicLong(userBuyIn)
         );
@@ -207,7 +217,8 @@ public class TableController {
                 request.minPlayersNum(),
                 request.maxPlayersNum(),
                 request.userId(),
-                request.chips()
+                request.chips(),
+                request.passcode()
         );
     }
 
