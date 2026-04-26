@@ -99,16 +99,40 @@ public class Table {
         this.state = TableStates.PRE_FLOP;
         startTimer();
     }
-    private void scheduleNextHand() {
+    private void scheduleNextHand(int delayInSeconds) {
         scheduler.schedule(() -> {
             synchronized (lock) {
-                if (players.size() >= MIN_PLAYERS && (state == TableStates.WAITING_FOR_PLAYERS ||
-                        state == TableStates.SHOWDOWN)) {
+
+                if (players.size() < MIN_PLAYERS) {
                     cleanupTable();
+                    this.state = TableStates.WAITING_FOR_PLAYERS;
+                    this.isTransitioning = false;
+                    return;
+                }
+
+                if (this.state == TableStates.SHOWDOWN) {
+                    this.state = TableStates.CLEANUP;
+                    cleanupTable();
+
+                    this.state = TableStates.CLEANUP;
+                    this.isTransitioning = true;
+
+                    scheduler.schedule(() -> {
+                        synchronized (lock) {
+                            if (players.size() >= MIN_PLAYERS) {
+                                startNewHand();
+                            } else {
+                                this.state = TableStates.WAITING_FOR_PLAYERS;
+                                this.isTransitioning = false;
+                            }
+                        }
+                    }, 2, TimeUnit.SECONDS);
+
+                } else if (this.state == TableStates.WAITING_FOR_PLAYERS) {
                     startNewHand();
                 }
             }
-        }, 15, TimeUnit.SECONDS);
+        }, delayInSeconds, TimeUnit.SECONDS);
     }
     private void setTableState(TableStates state) {
         this.state = state;
@@ -280,9 +304,8 @@ public class Table {
             Player winner = survivors.get(0);
             winner.getChips().addAndGet(pot.get());
             pot.set(0);
-            this.isTransitioning = true;
             cleanupTable();
-            scheduleNextHand();
+            scheduleNextHand(3);
             return;
         }
 
@@ -300,6 +323,8 @@ public class Table {
                     return;
                 }
 
+                int showdownDelay = 0;
+
                 switch (this.state) {
                     case PRE_FLOP -> {
                         setTableState(TableStates.FLOP);
@@ -315,7 +340,8 @@ public class Table {
                     }
                     case RIVER ->  {
                         setTableState(TableStates.SHOWDOWN);
-                        distributePot();
+                        int layers = distributePot();
+                        showdownDelay = (layers * 3) + 2;
                         pot.set(0);
                     }
                 }
@@ -344,7 +370,7 @@ public class Table {
                     }
 
                 } else {
-                    scheduleNextHand();
+                    scheduleNextHand(showdownDelay);
                 }
             }
         }, 5, TimeUnit.SECONDS);
@@ -362,7 +388,7 @@ public class Table {
         }
 
         cleanupTable();
-        scheduleNextHand();
+        scheduleNextHand(3);
     }
 
     private List<Player> determineWinners(List<Player> candidates) {
@@ -381,13 +407,15 @@ public class Table {
                     .collect(Collectors.toList());
         }
     }
-    private void distributePot() {
+    private int distributePot() {
         Map<Player, Long> contributions = new HashMap<>();
         for (Player p : players) {
             if (p.getTotalInHand() > 0) {
                 contributions.put(p, p.getTotalInHand());
             }
         }
+
+        int potLayers = 0;
 
         while (!contributions.isEmpty()) {
 
@@ -437,7 +465,11 @@ public class Table {
                     winners.get(i).getChips().addAndGet(share);
                 }
             }
+
+            potLayers++;
         }
+
+        return potLayers;
     }
 
     public void joinTable(Player player) {
