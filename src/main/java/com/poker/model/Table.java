@@ -619,8 +619,15 @@ public class Table {
             p.setTotalInHand(0);
             p.setRoundContribution(0);
 
-            if (p.getChips().get() < minBuyIn) {
+            if (p.getChips().get() < bigBlindBet) {
                 if (p.getStatus() != PlayerStatus.SITTING_OUT) {
+
+                    long totalMoney = p.getWalletBalance().get() + p.getChips().get();
+                    if (totalMoney < bigBlindBet) {
+                        leaveTable(p);
+                        continue;
+                    }
+
                     p.setStatus(PlayerStatus.SITTING_OUT);
 
                     scheduler.schedule(() -> {
