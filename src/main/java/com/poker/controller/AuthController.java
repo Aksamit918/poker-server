@@ -58,7 +58,6 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         try {
             LoginResponseDTO response = accountService.login(request.login(), request.password());
-            tableManager.forceKickPlayer(response.userId());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(401).body(e.getMessage()); // 401 Unauthorized

@@ -29,17 +29,20 @@ public class AccountService {
     private final GameTableRepository gameTableRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final Map<Long, String> activeSessions = new ConcurrentHashMap<>();
+    private final TableManager tableManager;
 
     private final long DAILY_BONUS_AMOUNT = 5000L;
 
     public AccountService(AccountRepository accountRepository,
                           TransactionRepository transactionRepository,
                           GameTableRepository gameTableRepository,
-                          BCryptPasswordEncoder passwordEncoder) {
+                          BCryptPasswordEncoder passwordEncoder,
+                          TableManager tableManager) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.gameTableRepository = gameTableRepository;
         this.passwordEncoder = passwordEncoder;
+        this.tableManager = tableManager;
     }
 
     public void validateSession(Long userId, String token) {
@@ -88,16 +91,23 @@ public class AccountService {
         }
 
         String token = UUID.randomUUID().toString();
-
         activeSessions.put(account.getId(), token);
 
-        Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
-        if (lastTx.isPresent()) {
-            if (lastTx.get().getType() == TransactionType.BUY_IN || lastTx.get().getType() == TransactionType.REBUY) {
-                long refundAmount = Math.abs(lastTx.get().getAmount());
-                account.setBalance(account.getBalance() + refundAmount);
-                Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
-                transactionRepository.save(refundLog);
+        String userIdStr = account.getId().toString();
+
+        if (tableManager.isPlayerActive(userIdStr)) {
+            tableManager.forceKickPlayer(userIdStr);
+        } else {
+            Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
+            if (lastTx.isPresent()) {
+                TransactionType lastType = lastTx.get().getType();
+
+                if (lastType == TransactionType.BUY_IN || lastType == TransactionType.REBUY) {
+                    long refundAmount = Math.abs(lastTx.get().getAmount());
+                    account.setBalance(account.getBalance() + refundAmount);
+                    Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
+                    transactionRepository.save(refundLog);
+                }
             }
         }
 

@@ -562,13 +562,17 @@ public class Table {
                 return;
             }
 
+            if (state == TableStates.WAITING_FOR_PLAYERS) {
+                return;
+            }
+
             activePlayerIdx = (activePlayerIdx - 1 + players.size()) % players.size();
 
             long playersInHand = players.stream()
                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.WAITING)
                     .count();
 
-            if (playersInHand < 2 && state != TableStates.WAITING_FOR_PLAYERS) {
+            if (playersInHand < 2) {
                 finishHandPrematurely();
                 return;
             }
@@ -576,7 +580,7 @@ public class Table {
             boolean hasNext = advanceTurn();
             if (!hasNext) {
                 endBettingRound();
-            } else if (state != TableStates.WAITING_FOR_PLAYERS) {
+            } else {
                 startTimer();
             }
         }
