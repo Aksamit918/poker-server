@@ -44,9 +44,6 @@ Thumbs.db
 .DS_Store
 
 # Credentials
-src/main/resources/application.properties
 
 .env
 application.properties.origin
-
-src/main/resources/application-prod.properties
