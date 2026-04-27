@@ -11,6 +11,7 @@ import com.poker.persistence.entity.Transaction;
 import com.poker.persistence.repository.AccountRepository;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.persistence.repository.TransactionRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +38,7 @@ public class AccountService {
                           TransactionRepository transactionRepository,
                           GameTableRepository gameTableRepository,
                           BCryptPasswordEncoder passwordEncoder,
-                          TableManager tableManager) {
+                          @Lazy TableManager tableManager) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.gameTableRepository = gameTableRepository;
