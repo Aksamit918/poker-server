@@ -10,6 +10,7 @@ import com.poker.model.Table;
 import com.poker.model.TransactionType;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
+import com.poker.service.GameEventPublisher;
 import com.poker.service.TableManager;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,11 +29,13 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TableController {
     private final TableManager tableManager;
     private final AccountService accountService;
+    private final GameEventPublisher eventPublisher;
 
     @Autowired
-    public TableController(TableManager tableManager, AccountService accountService) {
+    public TableController(TableManager tableManager, AccountService accountService, GameEventPublisher eventPublisher) {
         this.tableManager = tableManager;
         this.accountService = accountService;
+        this.eventPublisher = eventPublisher;
     }
 
     private String extractToken(String authHeader) {
@@ -185,23 +188,32 @@ public class TableController {
                                   @PathVariable String id,
                                   @RequestBody ActionRequestDTO request) {
         String token = extractToken(authHeader);
-
         accountService.validateSession(Long.parseLong(request.userId()), token);
 
         Table table = tableManager.getTable(id);
-
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Optional<Player> player = table.findPlayerById(request.userId());
-
-        if  (player.isEmpty()) {
+        Optional<Player> playerOpt = table.findPlayerById(request.userId());
+        if (playerOpt.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found");
         }
 
+        Player player = playerOpt.get();
         PlayerAction action = new PlayerAction(request.type(), request.amount());
-        table.handleAction(player.get(), action);
+
+        table.handleAction(player, action);
+
+        eventPublisher.publishPlayerAction(new com.poker.dto.events.PlayerActionEvent(
+                "PLAYER_ACTION",
+                id,
+                player.getSeatIndex(),
+                request.type(),
+                request.amount(),
+                com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
+                table.getPot()
+        ));
 
         return TableDetailsDTO.createTableDetailsDTO(table);
     }

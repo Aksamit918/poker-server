@@ -6,6 +6,8 @@ import com.poker.model.Table;
 import java.util.List;
 
 public record TableDetailsDTO(
+        @JsonProperty("event_type")
+        String eventType,
         @JsonProperty("table_id")
         String tableId,
         @JsonProperty("table_name")
@@ -40,16 +42,18 @@ public record TableDetailsDTO(
                 .toList();
 
         return new TableDetailsDTO(
+                "TABLE_UPDATE",
                 table.getId(),
                 table.getName(),
                 table.getBigBlindBet(),
                 table.getMinBuyIn(),
                 table.getMaxBuyIn(),
-                pot, dealerIdx,
+                pot,
+                dealerIdx,
                 activePlayerIdx,
                 cardStrings,
                 playerDTOs,
-                state);
+                state
+        );
     }
 }
-
