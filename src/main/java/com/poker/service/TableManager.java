@@ -7,6 +7,7 @@ import com.poker.persistence.entity.Account;
 import com.poker.persistence.entity.GameTable;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.util.PlayerLeaveListener;
+import com.poker.util.TableEventListener;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
@@ -17,15 +18,31 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-public class TableManager {
+public class TableManager implements TableEventListener {
     private final Map<String, Table> tables = new ConcurrentHashMap<>();
     private final Map<String, String> activePlayers = new ConcurrentHashMap<>();
     private final AccountService accountService;
     private final GameTableRepository tableRepository;
+    private final GameEventPublisher eventPublisher;
 
-    public TableManager(AccountService accountService, GameTableRepository tableRepository) {
+    public TableManager(AccountService accountService,
+                        GameTableRepository tableRepository,
+                        GameEventPublisher eventPublisher) {
         this.accountService = accountService;
         this.tableRepository = tableRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    @Override
+    public void onTableUpdate(Table table) {
+        TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table);
+        eventPublisher.publishTableUpdate(dto);
+    }
+
+    @Override
+    public void onPlayerLeave(String userId, long chips) {
+        accountService.depositToWallet(Long.parseLong(userId), chips, "unknown", TransactionType.CASH_OUT);
+        unregisterPlayer(userId);
     }
 
     public void forceKickPlayer(String userId) {
@@ -46,35 +63,24 @@ public class TableManager {
             throw new IllegalTableStateException("You are already playing at a table!");
         }
 
-        String tableIdStr;
-        do {
+        String tableIdStr = UUID.randomUUID().toString();
+
+        while (tables.containsKey(tableIdStr)) {
             tableIdStr = UUID.randomUUID().toString();
-        } while (tables.containsKey(tableIdStr));
+        }
 
         UUID tableUuid = UUID.fromString(tableIdStr);
-
         boolean isPrivate = passcode != null && !passcode.isEmpty();
 
         GameTable dbTable = new GameTable(
-                tableUuid,
-                name,
-                smallBlind,
-                bigBlind,
-                minPlayersNum,
-                maxPlayersNum,
-                isPrivate,
-                passcode,
-                false,
-                null
+                tableUuid, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
+                isPrivate, passcode, false, null
         );
-
         tableRepository.save(dbTable);
-
-        PlayerLeaveListener listener = createLeaveListener(tableIdStr);
 
         Table newTable = new Table(
                 tableIdStr, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
-                isPrivate, passcode, listener
+                isPrivate, passcode, this
         );
 
         tables.put(tableIdStr, newTable);
@@ -87,11 +93,8 @@ public class TableManager {
             int seatIndex = newTable.getFreeSeat();
 
             Player creator = new Player(
-                    userId,
-                    account.getNickname(),
-                    seatIndex,
-                    new AtomicLong(account.getBalance()),
-                    new AtomicLong(chips)
+                    userId, account.getNickname(), seatIndex,
+                    new AtomicLong(account.getBalance()), new AtomicLong(chips)
             );
 
             newTable.joinTable(creator);
@@ -135,7 +138,6 @@ public class TableManager {
         List<GameTable> systemTables = tableRepository.findByIsSystemTrue();
 
         for (GameTable dbTable : systemTables) {
-            PlayerLeaveListener listener = createLeaveListener(dbTable.getId().toString());
 
             Table memoryTable = new Table(
                     dbTable.getId().toString(),
@@ -146,34 +148,11 @@ public class TableManager {
                     dbTable.getMaxPlayers(),
                     dbTable.getIsPrivate(),
                     dbTable.getPasscode(),
-                    listener
+                    this
             );
 
             tables.put(memoryTable.getId(), memoryTable);
         }
         System.out.println("Loaded " + systemTables.size() + " system tables from DB.");
-    }
-
-    private PlayerLeaveListener createLeaveListener(String tableId) {
-        return (userId, chips) -> {
-            accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
-
-            unregisterPlayer(userId);
-
-            Table table = tables.get(tableId);
-
-            if (table != null && table.getPlayerCount() == 0) {
-
-                tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
-                    if (!dbTable.getIsSystem()) {
-
-                        tables.remove(tableId);
-                        tableRepository.delete(dbTable);
-
-                        System.out.println("DEBUG: Custom table [" + dbTable.getName() + "] closed and deleted.");
-                    }
-                });
-            }
-        };
     }
 }

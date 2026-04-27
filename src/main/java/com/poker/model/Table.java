@@ -4,6 +4,7 @@ import com.poker.exception.TableFullException;
 import com.poker.exception.*;
 import com.poker.util.HandEvaluator;
 import com.poker.util.PlayerLeaveListener;
+import com.poker.util.TableEventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -14,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class Table {
     private final Object lock = new Object();
-    private final PlayerLeaveListener leaveListener;
+    private final TableEventListener eventListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
     private static final int TURN_TIMEOUT = 10;
@@ -39,8 +40,9 @@ public class Table {
     private long currentMaxBet = 0;
     private final long smallBlindBet;
     private final long bigBlindBet;
+
     public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
-                 boolean isPrivate, String passcode, PlayerLeaveListener leaveListener) {
+                 boolean isPrivate, String passcode, TableEventListener eventListener) {
         this.id = id;
         this.name = name;
         this.isPrivate = isPrivate;
@@ -58,8 +60,9 @@ public class Table {
         this.maxBuyIn = bigBlindBet * 100;
         this.dealerIdx = -1;
         this.activePlayerIdx = -1;
-        this.leaveListener = leaveListener;
+        this.eventListener = eventListener;
     }
+
     private void setupPositions() {
         if (this.dealerIdx == -1) {
             this.dealerIdx = players.get(new Random().nextInt(players.size())).getSeatIndex();
@@ -101,6 +104,9 @@ public class Table {
         this.currentMaxBet = bigBlindForcedBet;
         dealCards();
         this.state = TableStates.PRE_FLOP;
+        if (eventListener != null) {
+            eventListener.onTableUpdate(this);
+        }
         startTimer();
     }
     private void scheduleNextHand(int delayInSeconds) {
@@ -293,6 +299,10 @@ public class Table {
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                 startNewHand();
             }
+
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
+            }
         }
     }
 
@@ -348,6 +358,10 @@ public class Table {
                     }
                 }
 
+                if (eventListener != null) {
+                    eventListener.onTableUpdate(this);
+                }
+
                 if (this.state != TableStates.SHOWDOWN) {
                     this.currentMaxBet = 0;
 
@@ -390,6 +404,9 @@ public class Table {
         }
 
         cleanupTable();
+        if (eventListener != null) {
+            eventListener.onTableUpdate(this);
+        }
         scheduleNextHand(3);
     }
 
@@ -495,6 +512,10 @@ public class Table {
             player.setStatus(PlayerStatus.WAITING);
             players.add(player);
 
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
+            }
+
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                 this.isTransitioning = true;
 
@@ -525,8 +546,8 @@ public class Table {
                 processFold(player);
             }
 
-            if (leaveListener != null) {
-                leaveListener.onPlayerLeave(player.getUserId(), player.getChips().get());
+            if (eventListener != null) {
+                eventListener.onPlayerLeave(player.getUserId(), player.getChips().get());
             }
 
             players.remove(player);
@@ -583,6 +604,9 @@ public class Table {
                 if (timedOutPlayer != null) {
                     timedOutPlayer.incrementMissedTurns();
                     processFold(timedOutPlayer);
+                    if (eventListener != null) {
+                        eventListener.onTableUpdate(this);
+                    }
                     if (timedOutPlayer.isKickRequired()) {
                         leaveTable(timedOutPlayer);
                     }
@@ -593,7 +617,6 @@ public class Table {
                     finishHandPrematurely();
                     return;
                 }
-
 
                 boolean hasNext = advanceTurn();
                 if (!hasNext) {
@@ -682,6 +705,10 @@ public class Table {
                 } else {
                     stopTimer();
                 }
+            }
+
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
             }
         }
     }
