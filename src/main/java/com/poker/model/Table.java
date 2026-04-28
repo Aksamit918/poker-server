@@ -317,6 +317,11 @@ public class Table {
             winner.getChips().addAndGet(pot.get());
             pot.set(0);
             cleanupTable();
+
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
+            }
+
             scheduleNextHand(3);
             return;
         }
