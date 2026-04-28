@@ -30,6 +30,7 @@ public class AccountService {
     private final GameTableRepository gameTableRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final Map<Long, String> activeSessions = new ConcurrentHashMap<>();
+    private final Map<String, Long> tokenToUserId = new ConcurrentHashMap<>();
     private final TableManager tableManager;
 
     private final long DAILY_BONUS_AMOUNT = 5000L;
@@ -82,6 +83,13 @@ public class AccountService {
         return accountRepository.findByNicknameContaining(name);
     }
 
+    public String getUserIdByToken(String token) {
+        if (token == null) return null;
+
+        Long userId = tokenToUserId.get(token);
+        return userId != null ? String.valueOf(userId) : null;
+    }
+
     @Transactional
     public LoginResponseDTO login(String login, String password) {
         Account account = accountRepository.findByLogin(login)
@@ -93,6 +101,7 @@ public class AccountService {
 
         String token = UUID.randomUUID().toString();
         activeSessions.put(account.getId(), token);
+        tokenToUserId.put(token, account.getId());
 
         String userIdStr = account.getId().toString();
 
@@ -119,7 +128,10 @@ public class AccountService {
     }
 
     public void logout(Long userId) {
-        activeSessions.remove(userId);
+        String token = activeSessions.remove(userId);
+        if (token != null) {
+            tokenToUserId.remove(token);
+        }
     }
 
     @Transactional
@@ -140,6 +152,7 @@ public class AccountService {
         String token = UUID.randomUUID().toString();
 
         activeSessions.put(account.getId(), token);
+        tokenToUserId.put(token, account.getId());
 
         return LoginResponseDTO.fromAccount(account, token, false);
     }

@@ -3,6 +3,8 @@ package com.poker.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Card;
 import com.poker.model.Player;
+
+import java.util.Collections;
 import java.util.List;
 
 public record PlayerDTO(
@@ -16,12 +18,16 @@ public record PlayerDTO(
         @JsonProperty("round_contribution") long roundContribution,
         @JsonProperty("amount_to_call") long amountToCall
 ) {
-    public static PlayerDTO fromPlayer(Player player, long currentMaxBet) {
+    public static PlayerDTO fromPlayer(Player player, long currentMaxBet, boolean isOwner, boolean isShowdown) {
         long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
 
-        List<String> cards = player.getHand().stream()
-                .map(Card::getShortName)
-                .toList();
+        List<String> cards = Collections.emptyList();
+
+        if (isOwner || isShowdown) {
+            cards = player.getHand().stream()
+                    .map(Card::getShortName)
+                    .toList();
+        }
 
         return new PlayerDTO(
                 player.getUserId(),

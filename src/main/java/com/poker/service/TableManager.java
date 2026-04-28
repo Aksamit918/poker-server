@@ -35,7 +35,7 @@ public class TableManager implements TableEventListener {
 
     @Override
     public void onTableUpdate(Table table) {
-        TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table);
+        TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table, null);
         eventPublisher.publishTableUpdate(dto);
     }
 
@@ -125,7 +125,7 @@ public class TableManager implements TableEventListener {
             throw e;
         }
 
-        return TableDetailsDTO.createTableDetailsDTO(newTable);
+        return TableDetailsDTO.createTableDetailsDTO(newTable, userId);
     }
 
     public Table getTable(String id) { return tables.get(id); }

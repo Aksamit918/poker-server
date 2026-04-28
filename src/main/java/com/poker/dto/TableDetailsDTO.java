@@ -3,6 +3,8 @@ package com.poker.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Card;
 import com.poker.model.Table;
+import com.poker.model.TableStates;
+
 import java.util.List;
 
 public record TableDetailsDTO(
@@ -25,7 +27,7 @@ public record TableDetailsDTO(
         List<PlayerDTO> players,
         String state
 ) {
-    public static TableDetailsDTO createTableDetailsDTO(Table table) {
+    public static TableDetailsDTO createTableDetailsDTO(Table table,  String requestingUserId) {
         long pot = table.getPot();
         long currentMax = table.getCurrentMaxBet();
         String state = table.getState().name();
@@ -37,8 +39,13 @@ public record TableDetailsDTO(
                 .map(Card::getShortName)
                 .toList();
 
+        boolean isShowdown = table.getState() == TableStates.SHOWDOWN;
+
         List<PlayerDTO> playerDTOs = table.getPlayers().stream()
-                .map(p -> PlayerDTO.fromPlayer(p, currentMax))
+                .map(p -> {
+                    boolean isOwner = p.getUserId().equals(requestingUserId);
+                    return PlayerDTO.fromPlayer(p, currentMax, isOwner, isShowdown);
+                })
                 .toList();
 
         return new TableDetailsDTO(

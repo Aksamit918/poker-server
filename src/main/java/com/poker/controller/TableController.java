@@ -56,14 +56,24 @@ public class TableController {
     }
 
     @GetMapping("/{id}")
-    public TableDetailsDTO getTableDetails(@PathVariable String id) {
+    public TableDetailsDTO getTableDetails(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable String id) {
+
         Table table = tableManager.getTable(id);
 
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        return TableDetailsDTO.createTableDetailsDTO(table);
+        String requestingUserId = null;
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            requestingUserId = accountService.getUserIdByToken(token);
+        }
+
+        return TableDetailsDTO.createTableDetailsDTO(table, requestingUserId);
     }
 
     @PostMapping("/{id}/join")
@@ -120,7 +130,7 @@ public class TableController {
         table.joinTable(newPlayer);
         tableManager.registerPlayer(request.userId(), id);
 
-        return TableDetailsDTO.createTableDetailsDTO(table);
+        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 
     @PostMapping("/{id}/leave")
@@ -142,7 +152,7 @@ public class TableController {
 
         table.leaveTable(player);
 
-        return TableDetailsDTO.createTableDetailsDTO(table);
+        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 
     @PostMapping("/{id}/rebuy")
@@ -215,7 +225,7 @@ public class TableController {
                 table.getPot()
         ));
 
-        return TableDetailsDTO.createTableDetailsDTO(table);
+        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 
     @PostMapping
