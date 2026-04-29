@@ -2,6 +2,7 @@ package com.poker.dto.events;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Player;
+import com.poker.model.PlayerStatus;
 
 public record PlayerPublicStateDTO(
         @JsonProperty("user_id") String userId,
@@ -13,12 +14,17 @@ public record PlayerPublicStateDTO(
         @JsonProperty("is_active") boolean active
 ) {
     public static PlayerPublicStateDTO fromPlayer(Player player) {
+        String displayStatus = player.getStatus().name();
+        if (player.getStatus() == PlayerStatus.WAITING) {
+            displayStatus = "SITTING_OUT";
+        }
+
         return new PlayerPublicStateDTO(
                 player.getUserId(),
                 player.getName(),
                 player.getSeatIndex(),
                 player.getChips().get(),
-                player.getStatus().name(),
+                displayStatus,
                 player.getRoundContribution(),
                 player.canAct()
         );

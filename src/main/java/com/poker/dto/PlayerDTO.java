@@ -3,6 +3,7 @@ package com.poker.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Card;
 import com.poker.model.Player;
+import com.poker.model.PlayerStatus;
 
 import java.util.Collections;
 import java.util.List;
@@ -29,13 +30,18 @@ public record PlayerDTO(
                     .toList();
         }
 
+        String displayStatus = player.getStatus().name();
+        if (player.getStatus() == PlayerStatus.WAITING) {
+            displayStatus = "SITTING_OUT";
+        }
+
         return new PlayerDTO(
                 player.getUserId(),
                 player.getName(),
                 player.getSeatIndex(),
                 player.getChips().get(),
                 cards,
-                player.getStatus().name(),
+                displayStatus,
                 player.canAct(),
                 player.getRoundContribution(),
                 toCall
