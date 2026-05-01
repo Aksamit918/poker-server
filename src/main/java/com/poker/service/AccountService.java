@@ -140,8 +140,12 @@ public class AccountService {
             throw new IllegalArgumentException("Login is already taken");
         }
 
-        if (password == null || password.length() < 6) {
+        if (password == null || password.isBlank() || password.length() < 6) {
             throw new IllegalArgumentException("Password must be at least 6 characters");
+        }
+
+        if (nickname == null || nickname.isBlank() || nickname.length() > 20) {
+            throw new IllegalArgumentException("Nickname must be between 1 and 20 characters long");
         }
 
         String encodedPassword = passwordEncoder.encode(password);
