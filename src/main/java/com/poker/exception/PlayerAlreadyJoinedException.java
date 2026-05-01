@@ -1,7 +1,7 @@
 package com.poker.exception;
 
-public class PlayerAlreadyJoinedException extends RuntimeException {
-    public PlayerAlreadyJoinedException(String message) {
-        super(message);
+public class PlayerAlreadyJoinedException extends PokerException {
+    public PlayerAlreadyJoinedException(String key, Object ... args) {
+        super(key, args);
     }
 }

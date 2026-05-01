@@ -1,7 +1,7 @@
 package com.poker.exception;
 
-public class IllegalCheckException extends RuntimeException {
-    public IllegalCheckException(String message) {
-        super(message);
+public class IllegalCheckException extends PokerException {
+    public IllegalCheckException(String key, Object ... args) {
+        super(key, args);
     }
 }

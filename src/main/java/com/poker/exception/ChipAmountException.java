@@ -1,7 +1,7 @@
 package com.poker.exception;
 
-public class ChipAmountException extends RuntimeException {
-    public ChipAmountException(String message) {
-        super(message);
+public class ChipAmountException extends PokerException {
+    public ChipAmountException(String key, Object ... args) {
+        super(key, args);
     }
 }

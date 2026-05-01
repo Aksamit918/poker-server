@@ -1,22 +1,65 @@
 package com.poker.exception;
 
+import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    private final MessageSource messageSource;
+
+    public GlobalExceptionHandler(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
     @ExceptionHandler(TableFullException.class)
-    public ResponseEntity<String> handleTableFull(TableFullException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<Map<String, String>> handleTableFull(TableFullException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("message", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(PlayerAlreadyJoinedException.class)
-    public ResponseEntity<String> handleAlreadyJoined(PlayerAlreadyJoinedException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
+    public ResponseEntity<Map<String, String>> handleAlreadyJoined(PlayerAlreadyJoinedException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                ex.getArgs(),
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(PlayerNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handlePlayerNotFound(PlayerNotFoundException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(GameInProgressException.class)
@@ -30,18 +73,45 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalCheckException.class)
-    public ResponseEntity<String> handleIllegalCheck(IllegalCheckException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
+    public ResponseEntity<Map<String, String>> handleIllegalCheck(IllegalCheckException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                ex.getArgs(),
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(IllegalRaiseException.class)
-    public ResponseEntity<String> handleIllegalRaise(IllegalRaiseException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
+    public ResponseEntity<Map<String, String>> handleIllegalRaise(IllegalRaiseException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                ex.getArgs(),
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(IllegalCallException.class)
-    public ResponseEntity<String> handleIllegalCall(IllegalCallException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<Map<String, String>> handleIllegalCall(IllegalCallException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(ChipAmountException.class)
@@ -49,14 +119,46 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(ChipAmountException.class)
+    public ResponseEntity<Map<String, String>> handleChipAmount(ChipAmountException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                ex.getArgs(),
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     @ExceptionHandler(NotYourTurnException.class)
-    public ResponseEntity<String> handleNotYourTurn(NotYourTurnException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.FORBIDDEN);
+    public ResponseEntity<Map<String, String>> handleNotYourTurn(NotYourTurnException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(IllegalTableStateException.class)
-    public ResponseEntity<String> handleIllegalTableState(IllegalTableStateException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.FORBIDDEN);
+    public ResponseEntity<Map<String, String>> handleIllegalTableState(IllegalTableStateException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -75,5 +177,34 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
-    // ResponseStatusException is used in generic error(404 Not Found)
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<Map<String, String>> handleDuplicate(DuplicateResourceException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(InvalidInputException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidInput(InvalidInputException ex, Locale locale) {
+        String errorMessage = messageSource.getMessage(
+                ex.getMessage(),
+                null,
+                locale
+        );
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", errorMessage);
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+
+        String msg = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", msg));
+    }
 }

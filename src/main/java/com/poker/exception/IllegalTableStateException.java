@@ -1,7 +1,7 @@
 package com.poker.exception;
 
-public class IllegalTableStateException extends RuntimeException {
-    public IllegalTableStateException(String message) {
-        super(message);
+public class IllegalTableStateException extends PokerException {
+    public IllegalTableStateException(String key) {
+        super(key);
     }
 }

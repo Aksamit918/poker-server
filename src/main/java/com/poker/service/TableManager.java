@@ -81,7 +81,7 @@ public class TableManager implements TableEventListener {
     public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum,
                                        int maxPlayersNum, String userId, long chips, String passcode) {
         if (activePlayers.containsKey(userId)) {
-            throw new IllegalTableStateException("You are already playing at a table!");
+            throw new IllegalTableStateException("error.player.already.playing");
         }
 
         String tableIdStr = UUID.randomUUID().toString();

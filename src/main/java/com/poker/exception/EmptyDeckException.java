@@ -1,7 +1,7 @@
 package com.poker.exception;
 
-public class EmptyDeckException extends RuntimeException {
-    public EmptyDeckException(String message) {
-        super(message);
+public class EmptyDeckException extends PokerException {
+    public EmptyDeckException(String key) {
+        super(key);
     }
 }

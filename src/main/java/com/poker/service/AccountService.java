@@ -4,6 +4,7 @@ import com.poker.dto.LoginResponseDTO;
 import com.poker.exception.AccountNotFoundException;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.InvalidCredentialsException;
+import com.poker.exception.InvalidInputException;
 import com.poker.model.TransactionType;
 import com.poker.persistence.entity.Account;
 import com.poker.persistence.entity.GameTable;
@@ -51,7 +52,7 @@ public class AccountService {
         String sessionToken = activeSessions.get(userId);
 
         if (sessionToken == null || !sessionToken.equals(token)) {
-            throw new InvalidCredentialsException("Invalid or expired session. Please log in again.");
+            throw new InvalidCredentialsException("error.session.invalid");
         }
     }
 
@@ -96,7 +97,7 @@ public class AccountService {
                 .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
 
         if (!passwordEncoder.matches(password, account.getPassword())) {
-            throw new InvalidCredentialsException("Invalid password");
+            throw new InvalidCredentialsException("error.password.incorrect");
         }
 
         String token = UUID.randomUUID().toString();
@@ -137,15 +138,15 @@ public class AccountService {
     @Transactional
     public LoginResponseDTO register(String login, String password, String nickname) {
         if (accountRepository.findByLogin(login).isPresent()) {
-            throw new IllegalArgumentException("Login is already taken");
+            throw new IllegalArgumentException("error.login.taken");
         }
 
         if (password == null || password.isBlank() || password.length() < 6) {
-            throw new IllegalArgumentException("Password must be at least 6 characters");
+            throw new InvalidInputException("error.password.length", 6);
         }
 
         if (nickname == null || nickname.isBlank() || nickname.length() > 20) {
-            throw new IllegalArgumentException("Nickname must be between 1 and 20 characters long");
+            throw new InvalidInputException("error.nickname.range", 1, 20);
         }
 
         String encodedPassword = passwordEncoder.encode(password);
@@ -173,7 +174,7 @@ public class AccountService {
                 .orElseThrow(() -> new AccountNotFoundException("Account not found"));
 
         if (newNickname == null || newNickname.isBlank()) {
-            throw new IllegalArgumentException("Nickname cannot be empty");
+            throw new InvalidInputException("error.nickname.empty");
         }
 
         account.setNickname(newNickname);
@@ -186,11 +187,11 @@ public class AccountService {
                 .orElseThrow(() -> new AccountNotFoundException("Account not found"));
 
         if (!passwordEncoder.matches(oldPassword, account.getPassword())) {
-            throw new InvalidCredentialsException("Current password is incorrect");
+            throw new InvalidCredentialsException("error.password.incorrect");
         }
 
         if (newPassword == null || newPassword.length() < 6) {
-            throw new IllegalArgumentException("New password must be at least 6 characters");
+            throw new InvalidInputException("error.password.length", 6);
         }
 
         String encodedNewPassword = passwordEncoder.encode(newPassword);
@@ -201,7 +202,7 @@ public class AccountService {
     @Transactional
     public void deleteAccount(Long id) {
         if (!accountRepository.existsById(id)) {
-            throw new AccountNotFoundException("Account not found");
+            throw new AccountNotFoundException("error.account.not.found");
         }
         accountRepository.deleteById(id);
     }
@@ -209,14 +210,14 @@ public class AccountService {
     @Transactional
     public void withdrawFromWallet(Long accountId, long amount, String tableId, TransactionType type) {
         if (amount <= 0) {
-            throw new IllegalArgumentException("Withdraw amount must be greater than zero");
+            throw new InvalidInputException("error.amount.positive");
         }
 
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
 
         if (account.getBalance() < amount) {
-            throw new ChipAmountException("Not enough money in wallet");
+            throw new ChipAmountException("error.chips.insufficient", amount, account.getBalance());
         }
 
         GameTable table = null;
@@ -238,7 +239,7 @@ public class AccountService {
         }
 
         if (amount < 0) {
-            throw new IllegalArgumentException("Deposit amount must be positive. Provided: " + amount);
+            throw new InvalidInputException("error.amount.deposit.positive", amount);
         }
 
         Account account = accountRepository.findById(accountId)

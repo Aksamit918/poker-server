@@ -1,7 +1,7 @@
 package com.poker.exception;
 
-public class NotYourTurnException extends RuntimeException {
-    public NotYourTurnException(String message) {
-        super(message);
+public class NotYourTurnException extends PokerException {
+    public NotYourTurnException(String key) {
+        super(key);
     }
 }

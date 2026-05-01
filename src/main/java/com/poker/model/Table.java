@@ -18,7 +18,7 @@ public class Table {
     private final TableEventListener eventListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
-    private static final int TURN_TIMEOUT = 10;
+    private static final int TURN_TIMEOUT = 100;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -208,7 +208,7 @@ public class Table {
     private void processCall(Player player) {
         long amountToCall = currentMaxBet - player.getRoundContribution();
         if (amountToCall <= 0) {
-            throw new IllegalCallException("There is no bet to call. Please use CHECK instead.");
+            throw new IllegalCallException("error.illegal.call");
         }
         long actualPaid = player.bet(amountToCall);
         pot.addAndGet(actualPaid);
@@ -218,7 +218,7 @@ public class Table {
     }
     private void processRaise(Player player, long newMaxBet) {
         if (newMaxBet <= currentMaxBet) {
-            throw new IllegalRaiseException("New Max Bet must exceed Current Max Bet");
+            throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
         }
         long amountToRaise = newMaxBet - player.getRoundContribution();
         long actualPaid = player.bet(amountToRaise);
@@ -234,7 +234,7 @@ public class Table {
     }
     private void processCheck(Player player) {
         if (player.getRoundContribution() < currentMaxBet) {
-            throw new IllegalCheckException("Round Contribution must be equal to current Max Bet");
+            throw new IllegalCheckException("error.illegal.check", currentMaxBet);
         }
         player.setStatus(PlayerStatus.CHECKED);
     }
@@ -281,11 +281,11 @@ public class Table {
             long increasedChips = currentChips + amount;
 
             if (increasedChips > maxBuyIn) {
-                throw new ChipAmountException("Rebuy amount exceeds the maximum table limit: " + maxBuyIn);
+                throw new ChipAmountException("error.chips.max.rebuy", maxBuyIn);
             }
 
             if (increasedChips < bigBlindBet) {
-                throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + bigBlindBet);
+                throw new ChipAmountException("error.chips.min.rebuy", bigBlindBet);
             }
 
             player.getWalletBalance().set(walletBalance);
@@ -499,19 +499,19 @@ public class Table {
     public void joinTable(Player player) {
         synchronized (lock) {
             if (players.stream().anyMatch(p -> p.getUserId().equals(player.getUserId()))) {
-                throw new PlayerAlreadyJoinedException("User already joined");
+                throw new PlayerAlreadyJoinedException("error.player.already.joined");
             }
 
             if (players.size() >= MAX_PLAYERS) {
-                throw new TableFullException("Table is full");
+                throw new TableFullException("error.table.full");
             }
 
             long buyIn = player.getChips().get();
 
             if (buyIn < minBuyIn) {
-                throw new ChipAmountException("Insufficient buy-in. Minimum required: " + minBuyIn);
+                throw new ChipAmountException("error.chips.min.buyin", maxBuyIn);
             } else if (buyIn > maxBuyIn) {
-                throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + maxBuyIn);
+                throw new ChipAmountException("error.chips.max.buyin", maxBuyIn);
             }
 
             player.setStatus(PlayerStatus.WAITING);
@@ -539,7 +539,7 @@ public class Table {
     public void leaveTable(Player player) {
         synchronized (lock) {
             if (!players.contains(player)) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found");
+                throw new PlayerNotFoundException("error.player.not.found");
             }
 
             int removedIdx = players.indexOf(player);
@@ -679,11 +679,11 @@ public class Table {
     public void handleAction(Player player, PlayerAction action) {
         synchronized (lock) {
             if (isTransitioning) {
-                throw new IllegalTableStateException("Please wait, cards are being dealt.");
+                throw new IllegalTableStateException("error.table.transitioning");
             }
 
             if (!isPlayerTurn(player)) {
-                throw new NotYourTurnException("It is not your turn!");
+                throw new NotYourTurnException("error.not.your.turn");
             }
 
             stopTimer();
@@ -741,7 +741,7 @@ public class Table {
                 return i;
             }
         }
-        throw new TableFullException("Table is full");
+        throw new TableFullException("error.table.full");
     }
     public int getNextPlayerSeat(int currentSeat) {
         Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());
