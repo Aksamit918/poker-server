@@ -18,7 +18,7 @@ public class Table {
     private final TableEventListener eventListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
-    private static final int TURN_TIMEOUT = 100;
+    private static final int TURN_TIMEOUT = 15;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -634,7 +634,7 @@ public class Table {
                     startTimer();
                 }
             }
-        }, TURN_TIMEOUT, TimeUnit.MINUTES);
+        }, TURN_TIMEOUT, TimeUnit.SECONDS);
     }
     private void cleanupTable() {
         communityCards.clear();
