@@ -115,11 +115,6 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ChipAmountException.class)
-    public ResponseEntity<String> handleInsufficientChips(ChipAmountException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(ChipAmountException.class)
     public ResponseEntity<Map<String, String>> handleChipAmount(ChipAmountException ex, Locale locale) {
         String errorMessage = messageSource.getMessage(
                 ex.getMessage(),
