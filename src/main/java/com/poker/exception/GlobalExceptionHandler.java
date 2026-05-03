@@ -202,8 +202,6 @@ public class GlobalExceptionHandler {
         Map<String, String> response = new HashMap<>();
         response.put("error", errorMessage);
 
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
-
         String msg = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", msg));
     }
