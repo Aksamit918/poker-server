@@ -103,7 +103,6 @@ public class Player {
     }
     public boolean isEligibleForNewHand() {
         return status == PlayerStatus.WAITING;
-
     }
     public void incrementMissedTurns() {
         missedTurns++;

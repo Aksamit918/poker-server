@@ -32,6 +32,8 @@ public class RedisConfig {
 
         container.addMessageListener(subscriber, new PatternTopic("poker:table:*"));
 
+        container.addMessageListener(subscriber, new PatternTopic("poker:lobby"));
+
         return container;
     }
 }

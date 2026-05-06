@@ -19,10 +19,14 @@ public class RedisMessageSubscriber implements MessageListener {
         String channel = new String(message.getChannel());
         String body = new String(message.getBody());
 
-        String wsDestination = channel.replace("poker:table:", "/topic/table/");
+        String wsDestination;
+        if (channel.equals("poker:lobby")) {
+            wsDestination = "/topic/lobby";
+        } else {
+            wsDestination = channel.replace("poker:table:", "/topic/table/");
+        }
 
         messagingTemplate.convertAndSend(wsDestination, body);
-
         log.debug("Redis Bridge: [{}] -> WebSocket: [{}]", channel, wsDestination);
     }
 }

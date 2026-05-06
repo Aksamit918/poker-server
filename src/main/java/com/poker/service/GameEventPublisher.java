@@ -1,6 +1,7 @@
 package com.poker.service;
 
 import com.poker.dto.TableDetailsDTO;
+import com.poker.dto.events.LobbyUpdateEvent;
 import com.poker.dto.events.PlayerActionEvent;
 import com.poker.dto.events.PlayerStatusEvent;
 import com.poker.util.RedisTopics;
@@ -27,5 +28,10 @@ public class GameEventPublisher {
     public void publishPlayerStatus(PlayerStatusEvent event) {
         String topic = RedisTopics.getTableTopic(event.tableId());
         redisTemplate.convertAndSend(topic, event);
+    }
+
+    public void publishLobbyUpdate(String tableId, int currentPlayers, int maxPlayers) {
+        LobbyUpdateEvent event = new LobbyUpdateEvent("LOBBY_UPDATE", tableId, currentPlayers, maxPlayers);
+        redisTemplate.convertAndSend("poker:lobby", event);
     }
 }
