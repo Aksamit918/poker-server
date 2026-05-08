@@ -27,8 +27,10 @@ public class WebSocketEventListener {
         if (userId != null) {
             log.info("User Disconnected (closed tab): " + userId);
 
-            if (tableManager.isPlayerActive(userId)) {
-                log.info("User {} is active. Scheduling auto-kick in 3 seconds...", userId);
+            boolean wasAtTable = tableManager.isPlayerActive(userId);
+
+            if (wasAtTable) {
+                log.info("User {} was at a table. Scheduling auto-kick in 3 seconds...", userId);
 
                 scheduler.schedule(() -> {
                     if (tableManager.isPlayerActive(userId)) {
