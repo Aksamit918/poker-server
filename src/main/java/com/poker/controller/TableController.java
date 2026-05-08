@@ -132,6 +132,14 @@ public class TableController {
 
         eventPublisher.publishLobbyUpdate(id, table.getPlayerCount(), table.getMaxPlayers());
 
+        eventPublisher.publishPlayerStatus(new com.poker.dto.events.PlayerStatusEvent(
+                "PLAYER_STATUS",
+                id,
+                newPlayer.getSeatIndex(),
+                "JOINED",
+                newPlayer.getName()
+        ));
+
         return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 

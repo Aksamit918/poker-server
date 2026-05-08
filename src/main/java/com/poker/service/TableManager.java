@@ -46,12 +46,19 @@ public class TableManager implements TableEventListener {
 
         accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
 
+        String realNickname = "Unknown";
+        try {
+            Account account = accountService.findById(Long.parseLong(userId));
+            realNickname = account.getNickname();
+        } catch (Exception e) {
+        }
+
         eventPublisher.publishPlayerStatus(new PlayerStatusEvent(
                 "PLAYER_STATUS",
                 tableId,
                 -1,
                 "LEFT",
-                "Player " + userId
+                realNickname
         ));
 
         unregisterPlayer(userId);
