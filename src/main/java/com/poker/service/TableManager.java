@@ -50,7 +50,7 @@ public class TableManager implements TableEventListener {
         try {
             Account account = accountService.findById(Long.parseLong(userId));
             realNickname = account.getNickname();
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
 
         eventPublisher.publishPlayerStatus(new PlayerStatusEvent(
@@ -64,14 +64,18 @@ public class TableManager implements TableEventListener {
         unregisterPlayer(userId);
 
         Table table = tables.get(tableId);
-        if (table != null && table.getPlayerCount() == 0) {
-            tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
-                if (!dbTable.getIsSystem()) {
-                    tables.remove(tableId);
-                    tableRepository.delete(dbTable);
-                    System.out.println("DEBUG: Custom table [" + dbTable.getName() + "] deleted.");
-                }
-            });
+        if (table != null) {
+            eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
+
+            if (table.getPlayerCount() == 0) {
+                tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
+                    if (!dbTable.getIsSystem()) {
+                        tables.remove(tableId);
+                        tableRepository.delete(dbTable);
+                        System.out.println("DEBUG: Custom table [" + dbTable.getName() + "] deleted.");
+                    }
+                });
+            }
         }
     }
 
