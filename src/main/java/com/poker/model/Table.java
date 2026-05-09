@@ -551,6 +551,7 @@ public class Table {
 
             if (eventListener != null) {
                 eventListener.onPlayerLeave(player.getUserId(), player.getChips().get());
+                eventListener.onTableUpdate(this);
             }
 
             if (removedIdx <= dealerIdx) {
