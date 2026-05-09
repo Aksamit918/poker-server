@@ -76,38 +76,42 @@ public class Table {
         this.activePlayerIdx = getNextPlayerSeat(bigBlindIdx);
     }
     private void startNewHand() {
-        for (Player p : players) {
-            p.setTotalInHand(0);
-            p.setRoundContribution(0);
-            if (p.isEligibleForNewHand()) {
-                p.setStatus(PlayerStatus.ACTIVE);
+        synchronized (lock) {
+            this.isTransitioning = false;
+
+            for (Player p : players) {
+                p.setTotalInHand(0);
+                p.setRoundContribution(0);
+                if (p.isEligibleForNewHand()) {
+                    p.setStatus(PlayerStatus.ACTIVE);
+                }
             }
-        }
 
-        long activePlayers = players.stream()
-                .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
-                .count();
-        if (activePlayers < MIN_PLAYERS) {
-            cleanupTable();
-            return;
-        }
+            long activePlayers = players.stream()
+                    .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
+                    .count();
+            if (activePlayers < MIN_PLAYERS) {
+                cleanupTable();
+                return;
+            }
 
-        setupPositions();
-        long smallBlindForcedBet = getPlayerBySeat(smallBlindIdx).bet(smallBlindBet);
-        long bigBlindForcedBet = getPlayerBySeat(bigBlindIdx).bet(bigBlindBet);
-        pot.addAndGet(smallBlindForcedBet);
-        pot.addAndGet(bigBlindForcedBet);
-        getPlayerBySeat(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
-        getPlayerBySeat(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
-        getPlayerBySeat(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
-        getPlayerBySeat(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
-        this.currentMaxBet = bigBlindForcedBet;
-        dealCards();
-        this.state = TableStates.PRE_FLOP;
-        if (eventListener != null) {
-            eventListener.onTableUpdate(this);
+            setupPositions();
+            long smallBlindForcedBet = getPlayerBySeat(smallBlindIdx).bet(smallBlindBet);
+            long bigBlindForcedBet = getPlayerBySeat(bigBlindIdx).bet(bigBlindBet);
+            pot.addAndGet(smallBlindForcedBet);
+            pot.addAndGet(bigBlindForcedBet);
+            getPlayerBySeat(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
+            getPlayerBySeat(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
+            getPlayerBySeat(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
+            getPlayerBySeat(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
+            this.currentMaxBet = bigBlindForcedBet;
+            dealCards();
+            this.state = TableStates.PRE_FLOP;
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
+            }
+            startTimer();
         }
-        startTimer();
     }
     private void scheduleNextHand(int delayInSeconds) {
         scheduler.schedule(() -> {
@@ -398,6 +402,7 @@ public class Table {
     }
     private void finishHandPrematurely() {
         stopTimer();
+        this.isTransitioning = true;
 
         List<Player> winners = players.stream()
                 .filter(Player::isInHand)
@@ -611,9 +616,12 @@ public class Table {
                 if (timedOutPlayer != null) {
                     timedOutPlayer.incrementMissedTurns();
                     processFold(timedOutPlayer);
+
                     if (eventListener != null) {
+                        eventListener.onPlayerAction(this.id, timedOutPlayer, ActionType.FOLD, 0, pot.get());
                         eventListener.onTableUpdate(this);
                     }
+
                     if (timedOutPlayer.isKickRequired()) {
                         leaveTable(timedOutPlayer);
                     }
@@ -630,6 +638,7 @@ public class Table {
                     endBettingRound();
                 } else {
                     startTimer();
+                    if (eventListener != null) eventListener.onTableUpdate(this);
                 }
             }
         }, TURN_TIMEOUT, TimeUnit.SECONDS);
@@ -695,6 +704,10 @@ public class Table {
             }
             player.resetMissedTurns();
 
+            if (eventListener != null) {
+                eventListener.onPlayerAction(this.id, player, action.type(), action.amount(), pot.get());
+            }
+
             long survivors = players.stream().filter(Player::isInHand).count();
 
             if (survivors < 2) {
@@ -712,10 +725,10 @@ public class Table {
                 } else {
                     stopTimer();
                 }
-            }
 
-            if (eventListener != null) {
-                eventListener.onTableUpdate(this);
+                if (eventListener != null) {
+                    eventListener.onTableUpdate(this);
+                }
             }
         }
     }

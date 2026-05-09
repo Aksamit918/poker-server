@@ -207,16 +207,6 @@ public class TableController {
 
         table.handleAction(player, action);
 
-        eventPublisher.publishPlayerAction(new com.poker.dto.events.PlayerActionEvent(
-                "PLAYER_ACTION",
-                id,
-                player.getSeatIndex(),
-                request.type(),
-                request.amount(),
-                com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
-                table.getPot()
-        ));
-
         return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 

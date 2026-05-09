@@ -101,6 +101,19 @@ public class TableManager implements TableEventListener {
         }
     }
 
+    @Override
+    public void onPlayerAction(String tableId, Player player, ActionType type, long amount, long pot) {
+        eventPublisher.publishPlayerAction(new com.poker.dto.events.PlayerActionEvent(
+                "PLAYER_ACTION",
+                tableId,
+                player.getSeatIndex(),
+                type,
+                amount,
+                com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
+                pot
+        ));
+    }
+
     public void forceKickPlayer(String userId) {
         String tableId = activePlayers.get(userId);
         if (tableId != null) {
