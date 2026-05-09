@@ -121,8 +121,6 @@ public class TableController {
         table.joinTable(newPlayer);
         tableManager.registerPlayer(request.userId(), id);
 
-        eventPublisher.publishLobbyUpdate(id, table.getPlayerCount(), table.getMaxPlayers());
-
         return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 
@@ -145,8 +143,6 @@ public class TableController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
         table.leaveTable(player);
-
-        eventPublisher.publishLobbyUpdate(id, table.getPlayerCount(), table.getMaxPlayers());
 
         return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
@@ -241,12 +237,6 @@ public class TableController {
                 request.userId(),
                 request.chips(),
                 request.passcode()
-        );
-
-        eventPublisher.publishLobbyUpdate(
-                dto.tableId(),
-                dto.players().size(),
-                request.maxPlayersNum()
         );
 
         return dto;

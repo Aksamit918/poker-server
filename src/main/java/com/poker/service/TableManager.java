@@ -94,6 +94,11 @@ public class TableManager implements TableEventListener {
                 "JOINED",
                 player.getName()
         ));
+
+        Table table = tables.get(tableId);
+        if (table != null) {
+            eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
+        }
     }
 
     public void forceKickPlayer(String userId) {
