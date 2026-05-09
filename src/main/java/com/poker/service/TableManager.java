@@ -1,7 +1,7 @@
 package com.poker.service;
 
 import com.poker.dto.TableDetailsDTO;
-import com.poker.dto.events.PlayerStatusEvent; // Не забудь импорт
+import com.poker.dto.events.PlayerStatusEvent;
 import com.poker.exception.IllegalTableStateException;
 import com.poker.model.*;
 import com.poker.persistence.entity.Account;
@@ -9,7 +9,9 @@ import com.poker.persistence.entity.GameTable;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.util.TableEventListener;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 @Service
 public class TableManager implements TableEventListener {
     private final Map<String, Table> tables = new ConcurrentHashMap<>();
@@ -75,7 +78,7 @@ public class TableManager implements TableEventListener {
                     if (!dbTable.getIsSystem()) {
                         tables.remove(tableId);
                         tableRepository.delete(dbTable);
-                        System.out.println("DEBUG: Custom table [" + dbTable.getName() + "] deleted.");
+                        log.info("Custom table [{}] deleted.", dbTable.getName());
                     }
                 });
             }
@@ -97,9 +100,10 @@ public class TableManager implements TableEventListener {
             ScheduledFuture<?> task = scheduler.schedule(() -> {
                 if (isPlayerActive(userId)) {
                     forceKickPlayer(userId);
+                    log.info("User {} was auto-kicked after 10s grace period.", userId);
                 }
                 disconnectTasks.remove(userId);
-            }, 3, TimeUnit.SECONDS);
+            }, 10, TimeUnit.SECONDS);
             disconnectTasks.put(userId, task);
         }
     }
@@ -162,9 +166,7 @@ public class TableManager implements TableEventListener {
     }
 
     public Table getTable(String id) { return tables.get(id); }
-
     public Table removeTable(String id) { return tables.remove(id); }
-
     public List<Table> getAllTables() { return new ArrayList<>(tables.values()); }
 
     public void registerPlayer(String userId, String tableId) {
@@ -178,7 +180,6 @@ public class TableManager implements TableEventListener {
     }
 
     public boolean isPlayerActive(String userId) { return activePlayers.containsKey(userId); }
-
     public String getTableIdByPlayer(String userId) { return activePlayers.get(userId); }
 
     @PostConstruct
