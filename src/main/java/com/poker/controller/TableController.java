@@ -76,6 +76,55 @@ public class TableController {
         return TableDetailsDTO.createTableDetailsDTO(table, requestingUserId);
     }
 
+    @PostMapping("/{id}/join")
+    public TableDetailsDTO joinTable(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable String id,
+            @RequestBody JoinRequestDTO request) {
+
+        String token = extractToken(authHeader);
+        accountService.validateSession(Long.parseLong(request.userId()), token);
+
+        Table table = tableManager.getTable(id);
+        if (table == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "error.table.not.found");
+        }
+
+        if (tableManager.isPlayerActive(request.userId())) {
+            throw new IllegalTableStateException("error.player.already.playing");
+        }
+
+        if (table.isPrivate()) {
+            if (request.passcode() == null || request.passcode().isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "error.passcode.required");
+            }
+            if (!table.getPasscode().equals(request.passcode())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "error.passcode.wrong");
+            }
+        }
+
+        long userBuyIn = request.chips();
+
+        Long userId = Long.parseLong(request.userId());
+        accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
+
+        Account account = accountService.findById(userId);
+
+        Player newPlayer = new Player(
+                String.valueOf(account.getId()),
+                account.getNickname(),
+                table.getFreeSeat(),
+                new AtomicLong(account.getBalance()),
+                new AtomicLong(userBuyIn)
+        );
+
+        table.joinTable(newPlayer);
+        tableManager.registerPlayer(request.userId(), id);
+
+        eventPublisher.publishLobbyUpdate(id, table.getPlayerCount(), table.getMaxPlayers());
+
+        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
+    }
 
 
     @PostMapping("/{id}/leave")

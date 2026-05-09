@@ -222,7 +222,12 @@ public class AccountService {
 
         GameTable table = null;
         if (tableId != null) {
-            table = gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
+            try {
+                java.util.UUID uuid = java.util.UUID.fromString(tableId);
+                table = gameTableRepository.findById(uuid).orElse(null);
+            } catch (IllegalArgumentException e) {
+
+            }
         }
 
         account.setBalance(account.getBalance() - amount);
