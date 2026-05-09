@@ -64,16 +64,19 @@ public class Table {
     }
 
     private void setupPositions() {
-        if (this.dealerIdx == -1) {
-            this.dealerIdx = players.get(new Random().nextInt(players.size())).getSeatIndex();
+        if (this.dealerIdx == -1 || getPlayerBySeat(dealerIdx) == null) {
+            Player firstActive = players.stream()
+                    .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
+                    .findFirst().orElse(null);
+            if (firstActive != null) this.dealerIdx = firstActive.getSeatIndex();
         } else {
-            this.dealerIdx = getNextPlayerSeat(dealerIdx);
+            this.dealerIdx = getNextActivePlayerSeat(dealerIdx);
         }
 
-        this.smallBlindIdx = getNextPlayerSeat(dealerIdx);
-        this.bigBlindIdx = getNextPlayerSeat(smallBlindIdx);
+        this.smallBlindIdx = getNextActivePlayerSeat(dealerIdx);
+        this.bigBlindIdx = getNextActivePlayerSeat(smallBlindIdx);
 
-        this.activePlayerIdx = getNextPlayerSeat(bigBlindIdx);
+        this.activePlayerIdx = getNextActivePlayerSeat(bigBlindIdx);
     }
     private void startNewHand() {
         try {
@@ -81,57 +84,67 @@ public class Table {
                 this.isTransitioning = false;
 
                 for (Player p : players) {
-                    p.setTotalInHand(0);
-                    p.setRoundContribution(0);
-                    if (p.isEligibleForNewHand()) {
+                    if (p.getChips().get() >= bigBlindBet) {
                         p.setStatus(PlayerStatus.ACTIVE);
+                    } else {
+                        p.setStatus(PlayerStatus.SITTING_OUT);
                     }
                 }
 
-                long activePlayers = players.stream()
-                        .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
-                        .count();
-                if (activePlayers < MIN_PLAYERS) {
-                    cleanupTable();
-                    return;
-                }
-
-                setupPositions();
-                long smallBlindForcedBet = getPlayerBySeat(smallBlindIdx).bet(smallBlindBet);
-                long bigBlindForcedBet = getPlayerBySeat(bigBlindIdx).bet(bigBlindBet);
-                pot.addAndGet(smallBlindForcedBet);
-                pot.addAndGet(bigBlindForcedBet);
-                getPlayerBySeat(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
-                getPlayerBySeat(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
-                getPlayerBySeat(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
-                getPlayerBySeat(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
-                this.currentMaxBet = bigBlindForcedBet;
-                dealCards();
-                this.state = TableStates.PRE_FLOP;
-                if (eventListener != null) {
-                    eventListener.onTableUpdate(this);
-                }
-                startTimer();
-            }
-        } catch (Exception e) {
-            System.err.println("FATAL ERROR IN startNewHand: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    private void scheduleNextHand(int delayInSeconds) {
-        this.isTransitioning = true;
-
-        scheduler.schedule(() -> {
-            synchronized (lock) {
-                if (players.size() < MIN_PLAYERS) {
-                    cleanupTable();
+                long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
+                if (activeCount < MIN_PLAYERS) {
                     this.state = TableStates.WAITING_FOR_PLAYERS;
-                    this.isTransitioning = false;
+                    cleanupTable();
                     if (eventListener != null) eventListener.onTableUpdate(this);
                     return;
                 }
 
-                startNewHand();
+                setupPositions();
+
+                Player sbPlayer = getPlayerBySeat(smallBlindIdx);
+                Player bbPlayer = getPlayerBySeat(bigBlindIdx);
+
+                long sbPaid = sbPlayer.bet(smallBlindBet);
+                long bbPaid = bbPlayer.bet(bigBlindBet);
+
+                pot.set(sbPaid + bbPaid);
+                sbPlayer.addToTotalInHand(sbPaid);
+                sbPlayer.addToRoundContribution(sbPaid);
+                bbPlayer.addToTotalInHand(bbPaid);
+                bbPlayer.addToRoundContribution(bbPaid);
+
+                this.currentMaxBet = bigBlindBet;
+                this.deck = new Deck();
+                dealCards();
+                this.state = TableStates.PRE_FLOP;
+
+                if (eventListener != null) eventListener.onTableUpdate(this);
+                startTimer();
+            }
+        } catch (Exception e) {
+            System.err.println("CRITICAL ERROR: " + e.getMessage());
+            e.printStackTrace();
+            this.isTransitioning = false;
+        }
+    }
+    private void scheduleNextHand(int delayInSeconds) {
+        this.isTransitioning = true;
+        scheduler.schedule(() -> {
+            try {
+                synchronized (lock) {
+                    if (players.size() < MIN_PLAYERS) {
+                        this.state = TableStates.WAITING_FOR_PLAYERS;
+                        cleanupTable();
+                        this.isTransitioning = false;
+                        if (eventListener != null) eventListener.onTableUpdate(this);
+                        return;
+                    }
+                    startNewHand();
+                }
+            } catch (Exception e) {
+                System.err.println("!!! ERROR IN scheduleNextHand !!!");
+                e.printStackTrace();
+                this.isTransitioning = false;
             }
         }, delayInSeconds, TimeUnit.SECONDS);
     }
@@ -139,8 +152,8 @@ public class Table {
         this.state = state;
     }
     private void dealCards() {
-        synchronized (lock) {
-            for (Player player : players) {
+        for (Player player : players) {
+            if (player.getStatus() == PlayerStatus.ACTIVE) {
                 player.addCard(deck.drawCard());
                 player.addCard(deck.drawCard());
             }
@@ -176,7 +189,7 @@ public class Table {
     private boolean advanceTurn() {
         int nextIdx = activePlayerIdx;
         for (int i = 0; i < players.size(); i++) {
-            nextIdx = getNextPlayerSeat(nextIdx);
+            nextIdx = getNextActivePlayerSeat(nextIdx);
             Player p = getPlayerBySeat(nextIdx);
             if (p.getStatus() == PlayerStatus.ACTIVE) {
                 activePlayerIdx = nextIdx;
@@ -359,10 +372,11 @@ public class Table {
     }
     private void finishHandPrematurely() {
         synchronized (lock) {
-            if (this.state == TableStates.WAITING_FOR_PLAYERS || this.state == TableStates.CLEANUP) return;
+            if (this.state == TableStates.CLEANUP) return;
 
             stopTimer();
             this.isTransitioning = true;
+            this.state = TableStates.CLEANUP;
 
             List<Player> winners = players.stream()
                     .filter(Player::isInHand)
@@ -373,7 +387,6 @@ public class Table {
                 pot.set(0);
             }
 
-            this.state = TableStates.CLEANUP;
             cleanupTable();
 
             if (eventListener != null) {
@@ -610,42 +623,20 @@ public class Table {
     }
     private void cleanupTable() {
         communityCards.clear();
+        this.pot.set(0);
+        this.currentMaxBet = 0;
+        this.activePlayerIdx = -1;
+        this.state = TableStates.WAITING_FOR_PLAYERS;
         for (Player p : players) {
             p.clearHand();
             p.setTotalInHand(0);
             p.setRoundContribution(0);
-
             if (p.getChips().get() < bigBlindBet) {
-                if (p.getStatus() != PlayerStatus.SITTING_OUT) {
-
-                    long totalMoney = p.getWalletBalance().get() + p.getChips().get();
-                    if (totalMoney < bigBlindBet) {
-                        leaveTable(p);
-                        continue;
-                    }
-
-                    p.setStatus(PlayerStatus.SITTING_OUT);
-
-                    scheduler.schedule(() -> {
-                        synchronized (lock) {
-                            if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT) {
-                                try {
-                                    leaveTable(p);
-                                } catch (Exception e) {
-
-                                }
-                            }
-                        }
-                    }, 30, TimeUnit.SECONDS);
-                }
+                p.setStatus(PlayerStatus.SITTING_OUT);
             } else {
                 p.setStatus(PlayerStatus.WAITING);
             }
         }
-        this.deck = new Deck();
-        this.state = TableStates.WAITING_FOR_PLAYERS;
-        this.activePlayerIdx = -1;
-        this.currentMaxBet = 0;
     }
 
     public void handleAction(Player player, PlayerAction action) {
@@ -719,18 +710,19 @@ public class Table {
         }
         throw new TableFullException("error.table.full");
     }
-    public int getNextPlayerSeat(int currentSeat) {
-        Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());
-        if (occupiedSeats.isEmpty()) return -1;
-        int nextSeat = currentSeat;
-        for (int i = 0; i < MAX_PLAYERS; i++) {
-            nextSeat = (currentSeat + 1) % MAX_PLAYERS;
-            if (occupiedSeats.contains(nextSeat)) {
-                break;
-            }
-            currentSeat = nextSeat;
+    public int getNextActivePlayerSeat(int currentSeat) {
+        List<Integer> activeSeats = players.stream()
+                .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
+                .map(Player::getSeatIndex)
+                .sorted()
+                .toList();
+
+        if (activeSeats.isEmpty()) return -1;
+
+        for (Integer seat : activeSeats) {
+            if (seat > currentSeat) return seat;
         }
-        return nextSeat;
+        return activeSeats.get(0);
     }
     public int getPrevPlayerSeat(int currentSeat) {
         Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());

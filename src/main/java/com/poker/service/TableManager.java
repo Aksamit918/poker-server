@@ -41,8 +41,13 @@ public class TableManager implements TableEventListener {
 
     @Override
     public void onTableUpdate(Table table) {
-        TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table, null);
-        eventPublisher.publishTableUpdate(dto);
+        try {
+            TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table, null);
+            eventPublisher.publishTableUpdate(dto);
+            System.out.println("DEBUG: Event published to Redis for table " + table.getId());
+        } catch (Exception e) {
+            System.err.println("CRITICAL: Failed to publish event to Redis: " + e.getMessage());
+        }
     }
 
     @Override
