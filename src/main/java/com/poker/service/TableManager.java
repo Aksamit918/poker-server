@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
@@ -24,6 +24,9 @@ public class TableManager implements TableEventListener {
     private final AccountService accountService;
     private final GameTableRepository tableRepository;
     private final GameEventPublisher eventPublisher;
+
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final Map<String, ScheduledFuture<?>> disconnectTasks = new ConcurrentHashMap<>();
 
     public TableManager(AccountService accountService,
                         GameTableRepository tableRepository,
@@ -89,6 +92,25 @@ public class TableManager implements TableEventListener {
         }
     }
 
+    public void scheduleDisconnectKick(String userId) {
+        if (isPlayerActive(userId)) {
+            ScheduledFuture<?> task = scheduler.schedule(() -> {
+                if (isPlayerActive(userId)) {
+                    forceKickPlayer(userId);
+                }
+                disconnectTasks.remove(userId);
+            }, 3, TimeUnit.SECONDS);
+            disconnectTasks.put(userId, task);
+        }
+    }
+
+    public void cancelDisconnectTask(String userId) {
+        ScheduledFuture<?> task = disconnectTasks.remove(userId);
+        if (task != null) {
+            task.cancel(false);
+        }
+    }
+
     public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum,
                                        int maxPlayersNum, String userId, long chips, String passcode) {
         if (activePlayers.containsKey(userId)) {
@@ -128,7 +150,7 @@ public class TableManager implements TableEventListener {
             );
 
             newTable.joinTable(creator);
-            activePlayers.put(userId, tableIdStr);
+            registerPlayer(userId, tableIdStr);
 
         } catch (Exception e) {
             tables.remove(tableIdStr);
@@ -140,11 +162,23 @@ public class TableManager implements TableEventListener {
     }
 
     public Table getTable(String id) { return tables.get(id); }
+
     public Table removeTable(String id) { return tables.remove(id); }
+
     public List<Table> getAllTables() { return new ArrayList<>(tables.values()); }
-    public void registerPlayer(String userId, String tableId) { activePlayers.put(userId, tableId); }
-    public void unregisterPlayer(String userId) { activePlayers.remove(userId); }
+
+    public void registerPlayer(String userId, String tableId) {
+        activePlayers.put(userId, tableId);
+        cancelDisconnectTask(userId);
+    }
+
+    public void unregisterPlayer(String userId) {
+        activePlayers.remove(userId);
+        cancelDisconnectTask(userId);
+    }
+
     public boolean isPlayerActive(String userId) { return activePlayers.containsKey(userId); }
+
     public String getTableIdByPlayer(String userId) { return activePlayers.get(userId); }
 
     @PostConstruct

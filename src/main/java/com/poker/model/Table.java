@@ -543,11 +543,11 @@ public class Table {
                 processFold(player);
             }
 
+            players.remove(player);
+
             if (eventListener != null) {
                 eventListener.onPlayerLeave(player.getUserId(), player.getChips().get());
             }
-
-            players.remove(player);
 
             if (removedIdx <= dealerIdx) {
                 dealerIdx--;

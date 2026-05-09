@@ -6,10 +6,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 
 @Slf4j
 @Component
@@ -17,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 public class WebSocketEventListener {
 
     private final TableManager tableManager;
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
@@ -25,20 +21,20 @@ public class WebSocketEventListener {
         String userId = (String) headerAccessor.getSessionAttributes().get("userId");
 
         if (userId != null) {
-            log.info("User Disconnected (closed tab): " + userId);
+            log.info("User Disconnected (closed tab or socket): " + userId);
+            tableManager.scheduleDisconnectKick(userId);
+        }
+    }
 
-            boolean wasAtTable = tableManager.isPlayerActive(userId);
+    @EventListener
+    public void handleWebSocketSubscribeListener(SessionSubscribeEvent event) {
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        String userId = (String) headerAccessor.getSessionAttributes().get("userId");
+        String destination = headerAccessor.getDestination();
 
-            if (wasAtTable) {
-                log.info("User {} was at a table. Scheduling auto-kick in 3 seconds...", userId);
-
-                scheduler.schedule(() -> {
-                    if (tableManager.isPlayerActive(userId)) {
-                        tableManager.forceKickPlayer(userId);
-                        log.info("Auto-kicked user {} after grace period", userId);
-                    }
-                }, 3, TimeUnit.SECONDS);
-            }
+        if (userId != null && destination != null && destination.startsWith("/topic/table/")) {
+            log.info("User {} subscribed to table. Canceling auto-kick...", userId);
+            tableManager.cancelDisconnectTask(userId);
         }
     }
 }

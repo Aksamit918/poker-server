@@ -80,8 +80,7 @@ public class TableController {
     public TableDetailsDTO joinTable(
             @RequestHeader("Authorization") String authHeader,
             @PathVariable String id,
-            @RequestBody JoinRequestDTO request)
-    {
+            @RequestBody JoinRequestDTO request) {
 
         String token = extractToken(authHeader);
         accountService.validateSession(Long.parseLong(request.userId()), token);
@@ -99,18 +98,25 @@ public class TableController {
             if (request.passcode() == null || request.passcode().isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Password required");
             }
+
             if (!table.getPasscode().equals(request.passcode())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Wrong password");
             }
         }
 
         long userBuyIn = request.chips();
-        if (userBuyIn < table.getMinBuyIn() || userBuyIn > table.getMaxBuyIn()) {
-            throw new ChipAmountException("Buy-in limits violated");
+
+        if (userBuyIn < table.getMinBuyIn()) {
+            throw new ChipAmountException("Insufficient buy-in...");
+        }
+        if (userBuyIn > table.getMaxBuyIn()) {
+            throw new ChipAmountException("Buy-in exceeds limit...");
         }
 
         Long userId = Long.parseLong(request.userId());
+
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
+
         Account account = accountService.findById(userId);
 
         Player newPlayer = new Player(
@@ -134,10 +140,7 @@ public class TableController {
                 newPlayer.getName()
         ));
 
-        TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table, request.userId());
-        eventPublisher.publishTableUpdate(dto);
-
-        return dto;
+        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
 
     @PostMapping("/{id}/leave")
@@ -261,19 +264,6 @@ public class TableController {
                 dto.players().size(),
                 request.maxPlayersNum()
         );
-
-        dto.players().stream()
-                .filter(p -> p.userId().equals(request.userId()))
-                .findFirst()
-                .ifPresent(creator -> eventPublisher.publishPlayerStatus(new com.poker.dto.events.PlayerStatusEvent(
-                        "PLAYER_STATUS",
-                        dto.tableId(),
-                        creator.seatIndex(),
-                        "JOINED",
-                        creator.name()
-                )));
-
-        eventPublisher.publishTableUpdate(dto);
 
         return dto;
     }
