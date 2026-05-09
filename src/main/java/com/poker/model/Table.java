@@ -76,75 +76,62 @@ public class Table {
         this.activePlayerIdx = getNextPlayerSeat(bigBlindIdx);
     }
     private void startNewHand() {
-        synchronized (lock) {
-            this.isTransitioning = false;
+        try {
+            synchronized (lock) {
+                this.isTransitioning = false;
 
-            for (Player p : players) {
-                p.setTotalInHand(0);
-                p.setRoundContribution(0);
-                if (p.isEligibleForNewHand()) {
-                    p.setStatus(PlayerStatus.ACTIVE);
+                for (Player p : players) {
+                    p.setTotalInHand(0);
+                    p.setRoundContribution(0);
+                    if (p.isEligibleForNewHand()) {
+                        p.setStatus(PlayerStatus.ACTIVE);
+                    }
                 }
-            }
 
-            long activePlayers = players.stream()
-                    .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
-                    .count();
-            if (activePlayers < MIN_PLAYERS) {
-                cleanupTable();
-                return;
-            }
+                long activePlayers = players.stream()
+                        .filter(p -> p.getStatus() == PlayerStatus.ACTIVE)
+                        .count();
+                if (activePlayers < MIN_PLAYERS) {
+                    cleanupTable();
+                    return;
+                }
 
-            setupPositions();
-            long smallBlindForcedBet = getPlayerBySeat(smallBlindIdx).bet(smallBlindBet);
-            long bigBlindForcedBet = getPlayerBySeat(bigBlindIdx).bet(bigBlindBet);
-            pot.addAndGet(smallBlindForcedBet);
-            pot.addAndGet(bigBlindForcedBet);
-            getPlayerBySeat(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
-            getPlayerBySeat(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
-            getPlayerBySeat(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
-            getPlayerBySeat(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
-            this.currentMaxBet = bigBlindForcedBet;
-            dealCards();
-            this.state = TableStates.PRE_FLOP;
-            if (eventListener != null) {
-                eventListener.onTableUpdate(this);
+                setupPositions();
+                long smallBlindForcedBet = getPlayerBySeat(smallBlindIdx).bet(smallBlindBet);
+                long bigBlindForcedBet = getPlayerBySeat(bigBlindIdx).bet(bigBlindBet);
+                pot.addAndGet(smallBlindForcedBet);
+                pot.addAndGet(bigBlindForcedBet);
+                getPlayerBySeat(smallBlindIdx).addToTotalInHand(smallBlindForcedBet);
+                getPlayerBySeat(smallBlindIdx).addToRoundContribution(smallBlindForcedBet);
+                getPlayerBySeat(bigBlindIdx).addToTotalInHand(bigBlindForcedBet);
+                getPlayerBySeat(bigBlindIdx).addToRoundContribution(bigBlindForcedBet);
+                this.currentMaxBet = bigBlindForcedBet;
+                dealCards();
+                this.state = TableStates.PRE_FLOP;
+                if (eventListener != null) {
+                    eventListener.onTableUpdate(this);
+                }
+                startTimer();
             }
-            startTimer();
+        } catch (Exception e) {
+            System.err.println("FATAL ERROR IN startNewHand: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     private void scheduleNextHand(int delayInSeconds) {
+        this.isTransitioning = true;
+
         scheduler.schedule(() -> {
             synchronized (lock) {
-
                 if (players.size() < MIN_PLAYERS) {
                     cleanupTable();
                     this.state = TableStates.WAITING_FOR_PLAYERS;
                     this.isTransitioning = false;
+                    if (eventListener != null) eventListener.onTableUpdate(this);
                     return;
                 }
 
-                if (this.state == TableStates.SHOWDOWN) {
-                    this.state = TableStates.CLEANUP;
-                    cleanupTable();
-
-                    this.state = TableStates.CLEANUP;
-                    this.isTransitioning = true;
-
-                    scheduler.schedule(() -> {
-                        synchronized (lock) {
-                            if (players.size() >= MIN_PLAYERS) {
-                                startNewHand();
-                            } else {
-                                this.state = TableStates.WAITING_FOR_PLAYERS;
-                                this.isTransitioning = false;
-                            }
-                        }
-                    }, 2, TimeUnit.SECONDS);
-
-                } else if (this.state == TableStates.WAITING_FOR_PLAYERS) {
-                    startNewHand();
-                }
+                startNewHand();
             }
         }, delayInSeconds, TimeUnit.SECONDS);
     }
@@ -311,113 +298,90 @@ public class Table {
     }
 
     private void endBettingRound() {
-        List<Player> survivors = players.stream()
-                .filter(Player::isInHand)
-                .toList();
+        synchronized (lock) {
+            if (isTransitioning) return;
 
-        if (survivors.size() == 1 && state != TableStates.WAITING_FOR_PLAYERS) {
-            this.isTransitioning = true;
-            Player winner = survivors.get(0);
-            winner.getChips().addAndGet(pot.get());
-            pot.set(0);
-            cleanupTable();
+            List<Player> survivors = players.stream()
+                    .filter(Player::isInHand)
+                    .toList();
 
-            if (eventListener != null) {
-                eventListener.onTableUpdate(this);
+            if (survivors.size() < 2) {
+                finishHandPrematurely();
+                return;
             }
 
-            scheduleNextHand(3);
-            return;
-        }
+            stopTimer();
+            this.isTransitioning = true;
 
-        stopTimer();
-
-        this.isTransitioning = true;
-
-        scheduler.schedule(() -> {
-            synchronized (lock) {
-                List<Player> survivorsCheck = players.stream()
-                        .filter(Player::isInHand)
-                        .toList();
-
-                if (survivorsCheck.size() < 2 || state == TableStates.WAITING_FOR_PLAYERS) {
-                    return;
-                }
-
-                int showdownDelay = 0;
-
-                switch (this.state) {
-                    case PRE_FLOP -> {
-                        setTableState(TableStates.FLOP);
-                        dealFlop();
+            scheduler.schedule(() -> {
+                synchronized (lock) {
+                    if (players.stream().filter(Player::isInHand).count() < 2) {
+                        this.isTransitioning = false;
+                        finishHandPrematurely();
+                        return;
                     }
-                    case FLOP ->  {
-                        setTableState(TableStates.TURN);
-                        dealTurn();
+
+                    int showdownDelay = 0;
+                    switch (this.state) {
+                        case PRE_FLOP -> { setTableState(TableStates.FLOP); dealFlop(); }
+                        case FLOP -> { setTableState(TableStates.TURN); dealTurn(); }
+                        case TURN -> { setTableState(TableStates.RIVER); dealRiver(); }
+                        case RIVER -> {
+                            setTableState(TableStates.SHOWDOWN);
+                            int layers = distributePot();
+                            showdownDelay = (layers * 3) + 2;
+                            pot.set(0);
+                        }
                     }
-                    case TURN ->  {
-                        setTableState(TableStates.RIVER);
-                        dealRiver();
-                    }
-                    case RIVER ->  {
-                        setTableState(TableStates.SHOWDOWN);
-                        int layers = distributePot();
-                        showdownDelay = (layers * 3) + 2;
-                        pot.set(0);
-                    }
-                }
 
-                if (eventListener != null) {
-                    eventListener.onTableUpdate(this);
-                }
+                    if (eventListener != null) eventListener.onTableUpdate(this);
 
-                if (this.state != TableStates.SHOWDOWN) {
-                    this.currentMaxBet = 0;
+                    if (this.state != TableStates.SHOWDOWN) {
+                        this.currentMaxBet = 0;
+                        this.isTransitioning = false; // Важно!
 
-                    long playersWhoCanBet = players.stream()
-                            .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
-                                    p.getStatus() != PlayerStatus.ALL_IN &&
-                                    p.getStatus() != PlayerStatus.WAITING)
-                            .count();
-
-                    if (playersWhoCanBet < 2) {
-                        endBettingRound();
-                    } else {
                         for (Player p : players) {
                             p.setRoundContribution(0);
                             if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
                                 p.setStatus(PlayerStatus.ACTIVE);
                             }
                         }
+
                         this.activePlayerIdx = dealerIdx;
                         advanceTurn();
                         startTimer();
+                    } else {
+                        scheduleNextHand(showdownDelay);
                     }
-
-                } else {
-                    scheduleNextHand(showdownDelay);
                 }
-            }
-        }, 3, TimeUnit.SECONDS);
+            }, 3, TimeUnit.SECONDS);
+        }
     }
     private void finishHandPrematurely() {
-        stopTimer();
-        this.isTransitioning = true;
+        synchronized (lock) {
+            if (this.state == TableStates.WAITING_FOR_PLAYERS || this.state == TableStates.CLEANUP) return;
 
-        List<Player> winners = players.stream()
-                .filter(Player::isInHand)
-                .toList();
+            stopTimer();
+            this.isTransitioning = true;
 
-        if (!winners.isEmpty()) {
-            winners.get(0).getChips().addAndGet(pot.get());
-            pot.set(0);
+            List<Player> winners = players.stream()
+                    .filter(Player::isInHand)
+                    .toList();
+
+            if (!winners.isEmpty()) {
+                winners.get(0).getChips().addAndGet(pot.get());
+                pot.set(0);
+            }
+
+            this.state = TableStates.CLEANUP;
+            cleanupTable();
+
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
+            }
+
+            scheduleNextHand(4);
         }
-
-        cleanupTable();
-        if (eventListener != null) {
-            eventListener.onTableUpdate(this);
-        }
-        scheduleNextHand(3);
     }
 
     private List<Player> determineWinners(List<Player> candidates) {
@@ -619,26 +583,27 @@ public class Table {
 
                     if (eventListener != null) {
                         eventListener.onPlayerAction(this.id, timedOutPlayer, ActionType.FOLD, 0, pot.get());
-                        eventListener.onTableUpdate(this);
+                    }
+
+                    long survivors = players.stream().filter(Player::isInHand).count();
+                    if (survivors < 2) {
+                        finishHandPrematurely();
+                        return;
+                    }
+
+                    boolean hasNext = advanceTurn();
+                    if (!hasNext) {
+                        endBettingRound();
+                    } else {
+                        startTimer();
+                        if (eventListener != null) {
+                            eventListener.onTableUpdate(this);
+                        }
                     }
 
                     if (timedOutPlayer.isKickRequired()) {
                         leaveTable(timedOutPlayer);
                     }
-                }
-
-                long survivors = players.stream().filter(Player::isInHand).count();
-                if (survivors < 2) {
-                    finishHandPrematurely();
-                    return;
-                }
-
-                boolean hasNext = advanceTurn();
-                if (!hasNext) {
-                    endBettingRound();
-                } else {
-                    startTimer();
-                    if (eventListener != null) eventListener.onTableUpdate(this);
                 }
             }
         }, TURN_TIMEOUT, TimeUnit.SECONDS);
