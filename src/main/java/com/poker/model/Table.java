@@ -515,6 +515,7 @@ public class Table {
             players.add(player);
 
             if (eventListener != null) {
+                eventListener.onPlayerJoin(this.id, player);
                 eventListener.onTableUpdate(this);
             }
 

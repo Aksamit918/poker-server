@@ -85,6 +85,17 @@ public class TableManager implements TableEventListener {
         }
     }
 
+    @Override
+    public void onPlayerJoin(String tableId, Player player) {
+        eventPublisher.publishPlayerStatus(new PlayerStatusEvent(
+                "PLAYER_STATUS",
+                tableId,
+                player.getSeatIndex(),
+                "JOINED",
+                player.getName()
+        ));
+    }
+
     public void forceKickPlayer(String userId) {
         String tableId = activePlayers.get(userId);
         if (tableId != null) {

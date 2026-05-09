@@ -76,72 +76,7 @@ public class TableController {
         return TableDetailsDTO.createTableDetailsDTO(table, requestingUserId);
     }
 
-    @PostMapping("/{id}/join")
-    public TableDetailsDTO joinTable(
-            @RequestHeader("Authorization") String authHeader,
-            @PathVariable String id,
-            @RequestBody JoinRequestDTO request) {
 
-        String token = extractToken(authHeader);
-        accountService.validateSession(Long.parseLong(request.userId()), token);
-
-        Table table = tableManager.getTable(id);
-        if (table == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
-        }
-
-        if (tableManager.isPlayerActive(request.userId())) {
-            throw new IllegalTableStateException("You are already playing at a table!");
-        }
-
-        if (table.isPrivate()) {
-            if (request.passcode() == null || request.passcode().isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Password required");
-            }
-
-            if (!table.getPasscode().equals(request.passcode())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Wrong password");
-            }
-        }
-
-        long userBuyIn = request.chips();
-
-        if (userBuyIn < table.getMinBuyIn()) {
-            throw new ChipAmountException("Insufficient buy-in...");
-        }
-        if (userBuyIn > table.getMaxBuyIn()) {
-            throw new ChipAmountException("Buy-in exceeds limit...");
-        }
-
-        Long userId = Long.parseLong(request.userId());
-
-        accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
-
-        Account account = accountService.findById(userId);
-
-        Player newPlayer = new Player(
-                String.valueOf(account.getId()),
-                account.getNickname(),
-                table.getFreeSeat(),
-                new AtomicLong(account.getBalance()),
-                new AtomicLong(userBuyIn)
-        );
-
-        table.joinTable(newPlayer);
-        tableManager.registerPlayer(request.userId(), id);
-
-        eventPublisher.publishLobbyUpdate(id, table.getPlayerCount(), table.getMaxPlayers());
-
-        eventPublisher.publishPlayerStatus(new com.poker.dto.events.PlayerStatusEvent(
-                "PLAYER_STATUS",
-                id,
-                newPlayer.getSeatIndex(),
-                "JOINED",
-                newPlayer.getName()
-        ));
-
-        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
-    }
 
     @PostMapping("/{id}/leave")
     public TableDetailsDTO leaveTable(@RequestHeader("Authorization") String authHeader,
