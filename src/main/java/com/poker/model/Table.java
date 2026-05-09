@@ -326,48 +326,71 @@ public class Table {
             stopTimer();
             this.isTransitioning = true;
 
+            long playersWhoCanBet = players.stream()
+                    .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
+                            p.getStatus() != PlayerStatus.ALL_IN &&
+                            p.getStatus() != PlayerStatus.WAITING)
+                    .count();
+
+            int delay = (playersWhoCanBet < 2) ? 1 : 3;
+
             scheduler.schedule(() -> {
-                synchronized (lock) {
-                    if (players.stream().filter(Player::isInHand).count() < 2) {
-                        this.isTransitioning = false;
-                        finishHandPrematurely();
-                        return;
-                    }
-
-                    int showdownDelay = 0;
-                    switch (this.state) {
-                        case PRE_FLOP -> { setTableState(TableStates.FLOP); dealFlop(); }
-                        case FLOP -> { setTableState(TableStates.TURN); dealTurn(); }
-                        case TURN -> { setTableState(TableStates.RIVER); dealRiver(); }
-                        case RIVER -> {
-                            setTableState(TableStates.SHOWDOWN);
-                            int layers = distributePot();
-                            showdownDelay = (layers * 3) + 2;
-                            pot.set(0);
+                try {
+                    synchronized (lock) {
+                        if (players.stream().filter(Player::isInHand).count() < 2) {
+                            this.isTransitioning = false;
+                            finishHandPrematurely();
+                            return;
                         }
-                    }
 
-                    if (eventListener != null) eventListener.onTableUpdate(this);
-
-                    if (this.state != TableStates.SHOWDOWN) {
-                        this.currentMaxBet = 0;
-                        this.isTransitioning = false; // Важно!
-
-                        for (Player p : players) {
-                            p.setRoundContribution(0);
-                            if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
-                                p.setStatus(PlayerStatus.ACTIVE);
+                        int showdownDelay = 0;
+                        switch (this.state) {
+                            case PRE_FLOP -> { setTableState(TableStates.FLOP); dealFlop(); }
+                            case FLOP -> { setTableState(TableStates.TURN); dealTurn(); }
+                            case TURN -> { setTableState(TableStates.RIVER); dealRiver(); }
+                            case RIVER -> {
+                                setTableState(TableStates.SHOWDOWN);
+                                int layers = distributePot();
+                                showdownDelay = (layers * 3) + 2;
+                                pot.set(0);
                             }
                         }
 
-                        this.activePlayerIdx = dealerIdx;
-                        advanceTurn();
-                        startTimer();
-                    } else {
-                        scheduleNextHand(showdownDelay);
+                        if (eventListener != null) eventListener.onTableUpdate(this);
+
+                        if (this.state != TableStates.SHOWDOWN) {
+                            this.currentMaxBet = 0;
+                            this.isTransitioning = false;
+
+                            long canBet = players.stream()
+                                    .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
+                                            p.getStatus() != PlayerStatus.ALL_IN &&
+                                            p.getStatus() != PlayerStatus.WAITING)
+                                    .count();
+
+                            if (canBet < 2) {
+                                endBettingRound();
+                            } else {
+                                for (Player p : players) {
+                                    p.setRoundContribution(0);
+                                    if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                                        p.setStatus(PlayerStatus.ACTIVE);
+                                    }
+                                }
+                                this.activePlayerIdx = dealerIdx;
+                                advanceTurn();
+                                startTimer();
+                            }
+                        } else {
+                            scheduleNextHand(showdownDelay);
+                        }
                     }
+                } catch (Exception e) {
+                    System.err.println("CRITICAL ERROR IN endBettingRound: " + e.getMessage());
+                    e.printStackTrace();
+                    this.isTransitioning = false;
                 }
-            }, 3, TimeUnit.SECONDS);
+            }, delay, TimeUnit.SECONDS);
         }
     }
     private void finishHandPrematurely() {
