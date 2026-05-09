@@ -514,6 +514,10 @@ public class Table {
             player.setStatus(PlayerStatus.SITTING_OUT);
             players.add(player);
 
+            if (eventListener != null) {
+                eventListener.onTableUpdate(this);
+            }
+
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                 this.isTransitioning = true;
                 scheduler.schedule(() -> {
