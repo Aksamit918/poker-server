@@ -511,7 +511,7 @@ public class Table {
                 throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + maxBuyIn);
             }
 
-            player.setStatus(PlayerStatus.SITTING_OUT);
+            player.setStatus(PlayerStatus.WAITING);
             players.add(player);
 
             if (eventListener != null) {
@@ -519,7 +519,7 @@ public class Table {
                 eventListener.onTableUpdate(this);
             }
 
-            if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+            if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
                 this.isTransitioning = true;
                 scheduler.schedule(() -> {
                     synchronized (lock) {
