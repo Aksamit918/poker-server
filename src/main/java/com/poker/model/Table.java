@@ -499,31 +499,23 @@ public class Table {
     public void joinTable(Player player) {
         synchronized (lock) {
             if (players.stream().anyMatch(p -> p.getUserId().equals(player.getUserId()))) {
-                throw new PlayerAlreadyJoinedException("error.player.already.joined");
+                throw new PlayerAlreadyJoinedException("User already joined");
             }
-
             if (players.size() >= MAX_PLAYERS) {
-                throw new TableFullException("error.table.full");
+                throw new TableFullException("Table is full");
             }
-
             long buyIn = player.getChips().get();
-
             if (buyIn < minBuyIn) {
-                throw new ChipAmountException("error.chips.min.buyin", maxBuyIn);
+                throw new ChipAmountException("Insufficient buy-in. Minimum required: " + minBuyIn);
             } else if (buyIn > maxBuyIn) {
-                throw new ChipAmountException("error.chips.max.buyin", maxBuyIn);
+                throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + maxBuyIn);
             }
 
-            player.setStatus(PlayerStatus.WAITING);
+            player.setStatus(PlayerStatus.SITTING_OUT);
             players.add(player);
-
-            if (eventListener != null) {
-                eventListener.onTableUpdate(this);
-            }
 
             if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                 this.isTransitioning = true;
-
                 scheduler.schedule(() -> {
                     synchronized (lock) {
                         if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
