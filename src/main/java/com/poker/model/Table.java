@@ -191,11 +191,12 @@ public class Table {
         for (int i = 0; i < players.size(); i++) {
             nextIdx = getNextActivePlayerSeat(nextIdx);
             Player p = getPlayerBySeat(nextIdx);
-            if (p.getStatus() == PlayerStatus.ACTIVE) {
+            if (p != null && p.getStatus() == PlayerStatus.ACTIVE) {
                 activePlayerIdx = nextIdx;
                 return true;
             }
         }
+        this.activePlayerIdx = -1;
         return false;
     }
 
@@ -221,9 +222,8 @@ public class Table {
         updateStatusAfterBet(player);
     }
     private void processRaise(Player player, long newMaxBet) {
-        if (newMaxBet <= currentMaxBet) {
-            throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
-        }
+        if (newMaxBet <= currentMaxBet) throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
+
         long amountToRaise = newMaxBet - player.getRoundContribution();
         long actualPaid = player.bet(amountToRaise);
         pot.addAndGet(actualPaid);
@@ -231,10 +231,15 @@ public class Table {
         player.addToTotalInHand(actualPaid);
         updateStatusAfterBet(player);
         this.currentMaxBet = newMaxBet;
-        players.stream()
-                .filter(p -> p != player)
-                .filter(Player::canAct)
-                .forEach(p -> p.setStatus(PlayerStatus.ACTIVE));
+
+        for (Player p : players) {
+            if (p != player &&
+                    p.getStatus() != PlayerStatus.FOLDED &&
+                    p.getStatus() != PlayerStatus.ALL_IN &&
+                    p.getStatus() != PlayerStatus.WAITING) {
+                p.setStatus(PlayerStatus.ACTIVE);
+            }
+        }
     }
     private void processCheck(Player player) {
         if (player.getRoundContribution() < currentMaxBet) {
@@ -244,35 +249,17 @@ public class Table {
     }
     private void processAllIn(Player player) {
         long chips = player.getChips().get();
-        long currentContribution = player.getRoundContribution();
-
-        long maxOpponentCanCommit = players.stream()
-                .filter(p -> p != player && p.canAct())
-                .mapToLong(p -> p.getChips().get() + p.getRoundContribution())
-                .max()
-                .orElse(0);
-
-        long effectiveTotalBet = Math.min(currentContribution + chips, Math.max(currentMaxBet, maxOpponentCanCommit));
-
-        long amountToBet = effectiveTotalBet - currentContribution;
-
-        long actualPaid = player.bet(amountToBet);
-        pot.addAndGet(actualPaid);
-        player.addToRoundContribution(actualPaid);
-        player.addToTotalInHand(actualPaid);
-
-        if (player.getChips().get() == 0) {
-            player.setStatus(PlayerStatus.ALL_IN);
-        } else {
-            player.setStatus(PlayerStatus.RAISED);
-        }
+        pot.addAndGet(chips);
+        player.getChips().set(0);
+        player.addToRoundContribution(chips);
+        player.addToTotalInHand(chips);
+        player.setStatus(PlayerStatus.ALL_IN);
 
         if (player.getRoundContribution() > currentMaxBet) {
             this.currentMaxBet = player.getRoundContribution();
-
             for (Player p : players) {
-                if (p != player && p.getStatus() != PlayerStatus.FOLDED
-                        && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                if (p != player && p.getStatus() != PlayerStatus.FOLDED &&
+                        p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
                     p.setStatus(PlayerStatus.ACTIVE);
                 }
             }
@@ -313,64 +300,46 @@ public class Table {
     private void endBettingRound() {
         synchronized (lock) {
             if (isTransitioning) return;
-
-            List<Player> survivors = players.stream()
-                    .filter(Player::isInHand)
-                    .toList();
-
-            if (survivors.size() < 2) {
-                finishHandPrematurely();
-                return;
-            }
-
-            stopTimer();
             this.isTransitioning = true;
+            stopTimer();
 
-            long playersWhoCanBet = players.stream()
+            long canBet = players.stream()
                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
                             p.getStatus() != PlayerStatus.ALL_IN &&
                             p.getStatus() != PlayerStatus.WAITING)
                     .count();
 
-            int delay = (playersWhoCanBet < 2) ? 1 : 3;
+            int delay = (canBet < 2) ? 1 : 2;
 
             scheduler.schedule(() -> {
                 try {
                     synchronized (lock) {
-                        if (players.stream().filter(Player::isInHand).count() < 2) {
-                            this.isTransitioning = false;
-                            finishHandPrematurely();
-                            return;
-                        }
+                        this.isTransitioning = false;
 
-                        int showdownDelay = 0;
                         switch (this.state) {
                             case PRE_FLOP -> { setTableState(TableStates.FLOP); dealFlop(); }
                             case FLOP -> { setTableState(TableStates.TURN); dealTurn(); }
                             case TURN -> { setTableState(TableStates.RIVER); dealRiver(); }
-                            case RIVER -> {
-                                setTableState(TableStates.SHOWDOWN);
-                                int layers = distributePot();
-                                showdownDelay = (layers * 3) + 2;
-                                pot.set(0);
-                            }
+                            case RIVER -> setTableState(TableStates.SHOWDOWN);
                         }
 
                         if (eventListener != null) eventListener.onTableUpdate(this);
 
-                        if (this.state != TableStates.SHOWDOWN) {
-                            this.currentMaxBet = 0;
-                            this.isTransitioning = false;
-
-                            long canBet = players.stream()
+                        if (this.state == TableStates.SHOWDOWN) {
+                            distributePot();
+                            pot.set(0);
+                            scheduleNextHand(5);
+                        } else {
+                            long stillCanBet = players.stream()
                                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
                                             p.getStatus() != PlayerStatus.ALL_IN &&
                                             p.getStatus() != PlayerStatus.WAITING)
                                     .count();
 
-                            if (canBet < 2) {
+                            if (stillCanBet < 2) {
                                 endBettingRound();
                             } else {
+                                this.currentMaxBet = 0;
                                 for (Player p : players) {
                                     p.setRoundContribution(0);
                                     if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
@@ -380,13 +349,12 @@ public class Table {
                                 this.activePlayerIdx = dealerIdx;
                                 advanceTurn();
                                 startTimer();
+                                if (eventListener != null) eventListener.onTableUpdate(this);
                             }
-                        } else {
-                            scheduleNextHand(showdownDelay);
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("CRITICAL ERROR IN endBettingRound: " + e.getMessage());
+                    System.err.println("FATAL ERROR IN endBettingRound: " + e.getMessage());
                     e.printStackTrace();
                     this.isTransitioning = false;
                 }
@@ -483,6 +451,11 @@ public class Table {
             }
 
             List<Player> winners = determineWinners(eligibleCandidates);
+
+            if (winners.isEmpty()) {
+                System.err.println("CRITICAL ERROR: No winners found in distributePot!");
+                break;
+            }
 
             int share = currentPotLayer / winners.size();
             int remainder = currentPotLayer % winners.size();
@@ -664,13 +637,8 @@ public class Table {
 
     public void handleAction(Player player, PlayerAction action) {
         synchronized (lock) {
-            if (isTransitioning) {
-                throw new IllegalTableStateException("error.table.transitioning");
-            }
-
-            if (!isPlayerTurn(player)) {
-                throw new NotYourTurnException("error.not.your.turn");
-            }
+            if (isTransitioning) throw new IllegalTableStateException("error.table.transitioning");
+            if (!isPlayerTurn(player)) throw new NotYourTurnException("error.not.your.turn");
 
             stopTimer();
 
@@ -688,7 +656,6 @@ public class Table {
             }
 
             long survivors = players.stream().filter(Player::isInHand).count();
-
             if (survivors < 2) {
                 finishHandPrematurely();
                 return;
@@ -699,12 +666,7 @@ public class Table {
             if (!hasNextPlayer) {
                 endBettingRound();
             } else {
-                if (state != TableStates.WAITING_FOR_PLAYERS && state != TableStates.SHOWDOWN) {
-                    startTimer();
-                } else {
-                    stopTimer();
-                }
-
+                startTimer();
                 if (eventListener != null) {
                     eventListener.onTableUpdate(this);
                 }
