@@ -90,8 +90,14 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "error.table.not.found");
         }
 
-        if (tableManager.isPlayerActive(request.userId())) {
-            throw new IllegalTableStateException("error.player.already.playing");
+        String activeTableId = tableManager.getTableIdByPlayer(request.userId());
+        if (activeTableId != null) {
+            if (activeTableId.equals(id)) {
+                tableManager.cancelDisconnectTask(request.userId());
+                return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
+            } else {
+                throw new IllegalTableStateException("error.player.already.playing");
+            }
         }
 
         if (table.isPrivate()) {
@@ -104,10 +110,13 @@ public class TableController {
         }
 
         long userBuyIn = request.chips();
+        if (userBuyIn < table.getMinBuyIn() || userBuyIn > table.getMaxBuyIn()) {
+            throw new ChipAmountException("error.chips.amount.invalid");
+        }
 
         Long userId = Long.parseLong(request.userId());
-        accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
 
+        accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
         Account account = accountService.findById(userId);
 
         Player newPlayer = new Player(
@@ -205,7 +214,12 @@ public class TableController {
         Player player = playerOpt.get();
         PlayerAction action = new PlayerAction(request.type(), request.amount());
 
-        table.handleAction(player, action);
+        try {
+            table.handleAction(player, action);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
 
         return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
     }
