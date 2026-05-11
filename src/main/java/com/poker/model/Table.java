@@ -640,7 +640,6 @@ public class Table {
                             if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT) {
                                 try {
                                     leaveTable(p);
-                                    // Обновляем стол после кика, чтобы фронт увидел изменение
                                     if (eventListener != null) eventListener.onTableUpdate(this);
                                 } catch (Exception ignored) {}
                             }

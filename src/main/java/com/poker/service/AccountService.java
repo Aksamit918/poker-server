@@ -33,6 +33,7 @@ public class AccountService {
     private final Map<Long, String> activeSessions = new ConcurrentHashMap<>();
     private final Map<String, Long> tokenToUserId = new ConcurrentHashMap<>();
     private final TableManager tableManager;
+    private final java.time.OffsetDateTime serverStartTime = java.time.OffsetDateTime.now();
 
     private final long DAILY_BONUS_AMOUNT = 5000L;
 
@@ -113,7 +114,8 @@ public class AccountService {
             if (lastTx.isPresent()) {
                 TransactionType lastType = lastTx.get().getType();
 
-                if (lastType == TransactionType.BUY_IN || lastType == TransactionType.REBUY) {
+                if ((lastType == TransactionType.BUY_IN || lastType == TransactionType.REBUY)
+                && lastTx.get().getCreatedAt().isBefore(serverStartTime)) {
                     long refundAmount = Math.abs(lastTx.get().getAmount());
                     account.setBalance(account.getBalance() + refundAmount);
                     Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
