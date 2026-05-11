@@ -84,24 +84,9 @@ public class Table {
                 this.isTransitioning = false;
 
                 for (Player p : players) {
-                    p.clearHand();
-                    p.setTotalInHand(0);
-                    p.setRoundContribution(0);
-                }
-
-                for (Player p : players) {
-                    if (p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet) {
+                    if (p.getStatus() == PlayerStatus.WAITING) {
                         p.setStatus(PlayerStatus.ACTIVE);
                     }
-                }
-
-                long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
-
-                if (activeCount < MIN_PLAYERS) {
-                    this.state = TableStates.WAITING_FOR_PLAYERS;
-                    cleanupTable();
-                    if (eventListener != null) eventListener.onTableUpdate(this);
-                    return;
                 }
 
                 setupPositions();
@@ -127,6 +112,7 @@ public class Table {
                 this.currentMaxBet = bigBlindBet;
                 this.deck = new Deck();
                 dealCards();
+
                 this.state = TableStates.PRE_FLOP;
 
                 if (eventListener != null) eventListener.onTableUpdate(this);
@@ -140,20 +126,26 @@ public class Table {
     }
     private void scheduleNextHand(int delayInSeconds) {
         this.isTransitioning = true;
+
         scheduler.schedule(() -> {
             try {
                 synchronized (lock) {
-                    if (players.size() < MIN_PLAYERS) {
-                        this.state = TableStates.WAITING_FOR_PLAYERS;
-                        cleanupTable();
+                    cleanupTable();
+
+                    long readyPlayers = players.stream()
+                            .filter(p -> p.getStatus() == PlayerStatus.WAITING)
+                            .count();
+
+                    if (readyPlayers < MIN_PLAYERS) {
                         this.isTransitioning = false;
                         if (eventListener != null) eventListener.onTableUpdate(this);
                         return;
                     }
+
                     startNewHand();
                 }
             } catch (Exception e) {
-                System.err.println("!!! ERROR IN scheduleNextHand !!!");
+                System.err.println("CRITICAL ERROR IN scheduleNextHand: " + e.getMessage());
                 e.printStackTrace();
                 this.isTransitioning = false;
             }
@@ -314,13 +306,7 @@ public class Table {
             this.isTransitioning = true;
             stopTimer();
 
-            long canBet = players.stream()
-                    .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
-                            p.getStatus() != PlayerStatus.ALL_IN &&
-                            p.getStatus() != PlayerStatus.WAITING)
-                    .count();
-
-            int delay = (canBet < 2) ? 1 : 2;
+            int delay = 3;
 
             scheduler.schedule(() -> {
                 try {
@@ -334,28 +320,13 @@ public class Table {
                             case RIVER -> setTableState(TableStates.SHOWDOWN);
                         }
 
-                        int showdownDelay = 0;
+                        if (eventListener != null) eventListener.onTableUpdate(this);
+
                         if (this.state == TableStates.SHOWDOWN) {
-                            int layers = distributePot();
+                            distributePot();
                             pot.set(0);
-                            showdownDelay = (layers * 3) + 2;
-                        }
-
-                        if (eventListener != null) {
-                            eventListener.onTableUpdate(this);
-                        }
-
-                        if (this.state == TableStates.SHOWDOWN) {
-                            scheduleNextHand(showdownDelay);
+                            scheduleNextHand(5);
                         } else {
-                            this.currentMaxBet = 0;
-                            for (Player p : players) {
-                                p.setRoundContribution(0);
-                                if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
-                                    p.setStatus(PlayerStatus.ACTIVE);
-                                }
-                            }
-
                             long stillCanBet = players.stream()
                                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
                                             p.getStatus() != PlayerStatus.ALL_IN &&
@@ -365,6 +336,13 @@ public class Table {
                             if (stillCanBet < 2) {
                                 endBettingRound();
                             } else {
+                                this.currentMaxBet = 0;
+                                for (Player p : players) {
+                                    p.setRoundContribution(0);
+                                    if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                                        p.setStatus(PlayerStatus.ACTIVE);
+                                    }
+                                }
                                 this.activePlayerIdx = dealerIdx;
                                 advanceTurn();
                                 startTimer();
@@ -396,8 +374,6 @@ public class Table {
                 winners.get(0).getChips().addAndGet(pot.get());
                 pot.set(0);
             }
-
-            cleanupTable();
 
             if (eventListener != null) {
                 eventListener.onTableUpdate(this);
@@ -664,6 +640,7 @@ public class Table {
                             if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT) {
                                 try {
                                     leaveTable(p);
+                                    // Обновляем стол после кика, чтобы фронт увидел изменение
                                     if (eventListener != null) eventListener.onTableUpdate(this);
                                 } catch (Exception ignored) {}
                             }
