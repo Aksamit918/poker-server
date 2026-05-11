@@ -626,21 +626,47 @@ public class Table {
         }, TURN_TIMEOUT, TimeUnit.SECONDS);
     }
     private void cleanupTable() {
-        communityCards.clear();
+        this.communityCards.clear();
         this.pot.set(0);
         this.currentMaxBet = 0;
         this.activePlayerIdx = -1;
         this.state = TableStates.WAITING_FOR_PLAYERS;
+
         for (Player p : players) {
             p.clearHand();
             p.setTotalInHand(0);
             p.setRoundContribution(0);
+
             if (p.getChips().get() < bigBlindBet) {
-                p.setStatus(PlayerStatus.SITTING_OUT);
+                if (p.getStatus() != PlayerStatus.SITTING_OUT) {
+
+                    long totalMoney = p.getWalletBalance().get() + p.getChips().get();
+
+                    if (totalMoney < bigBlindBet) {
+                        leaveTable(p);
+                        continue;
+                    }
+
+                    p.setStatus(PlayerStatus.SITTING_OUT);
+
+                    scheduler.schedule(() -> {
+                        synchronized (lock) {
+                            if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT) {
+                                try {
+                                    System.out.println("DEBUG: Player " + p.getUserId() + " kicked due to rebuy timeout.");
+                                    leaveTable(p);
+                                } catch (Exception e) {
+                                    System.err.println("Error kicking player: " + e.getMessage());
+                                }
+                            }
+                        }
+                    }, 30, TimeUnit.SECONDS);
+                }
             } else {
                 p.setStatus(PlayerStatus.WAITING);
             }
         }
+        this.deck = new Deck();
     }
 
     public void handleAction(Player player, PlayerAction action) {
