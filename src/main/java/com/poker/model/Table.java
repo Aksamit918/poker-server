@@ -84,14 +84,19 @@ public class Table {
                 this.isTransitioning = false;
 
                 for (Player p : players) {
-                    if (p.getChips().get() >= bigBlindBet) {
+                    p.clearHand();
+                    p.setTotalInHand(0);
+                    p.setRoundContribution(0);
+                }
+
+                for (Player p : players) {
+                    if (p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet) {
                         p.setStatus(PlayerStatus.ACTIVE);
-                    } else {
-                        p.setStatus(PlayerStatus.SITTING_OUT);
                     }
                 }
 
                 long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
+
                 if (activeCount < MIN_PLAYERS) {
                     this.state = TableStates.WAITING_FOR_PLAYERS;
                     cleanupTable();
@@ -103,6 +108,12 @@ public class Table {
 
                 Player sbPlayer = getPlayerBySeat(smallBlindIdx);
                 Player bbPlayer = getPlayerBySeat(bigBlindIdx);
+
+                if (sbPlayer == null || bbPlayer == null || sbPlayer.getStatus() != PlayerStatus.ACTIVE || bbPlayer.getStatus() != PlayerStatus.ACTIVE) {
+                    setupPositions();
+                    sbPlayer = getPlayerBySeat(smallBlindIdx);
+                    bbPlayer = getPlayerBySeat(bigBlindIdx);
+                }
 
                 long sbPaid = sbPlayer.bet(smallBlindBet);
                 long bbPaid = bbPlayer.bet(bigBlindBet);
@@ -122,7 +133,7 @@ public class Table {
                 startTimer();
             }
         } catch (Exception e) {
-            System.err.println("CRITICAL ERROR: " + e.getMessage());
+            System.err.println("CRITICAL ERROR IN startNewHand: " + e.getMessage());
             e.printStackTrace();
             this.isTransitioning = false;
         }
@@ -641,7 +652,6 @@ public class Table {
                 if (p.getStatus() != PlayerStatus.SITTING_OUT) {
 
                     long totalMoney = p.getWalletBalance().get() + p.getChips().get();
-
                     if (totalMoney < bigBlindBet) {
                         leaveTable(p);
                         continue;
@@ -653,11 +663,9 @@ public class Table {
                         synchronized (lock) {
                             if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT) {
                                 try {
-                                    System.out.println("DEBUG: Player " + p.getUserId() + " kicked due to rebuy timeout.");
                                     leaveTable(p);
-                                } catch (Exception e) {
-                                    System.err.println("Error kicking player: " + e.getMessage());
-                                }
+                                    if (eventListener != null) eventListener.onTableUpdate(this);
+                                } catch (Exception ignored) {}
                             }
                         }
                     }, 30, TimeUnit.SECONDS);
