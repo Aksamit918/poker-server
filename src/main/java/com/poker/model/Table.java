@@ -306,7 +306,7 @@ public class Table {
             this.isTransitioning = true;
             stopTimer();
 
-            int delay = 3;
+            int delay = 1;
 
             scheduler.schedule(() -> {
                 try {
