@@ -18,7 +18,7 @@ public class Table {
     private final TableEventListener eventListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
-    private static final int TURN_TIMEOUT = 15000;
+    private static final int TURN_TIMEOUT = 15;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -323,13 +323,28 @@ public class Table {
                             case RIVER -> setTableState(TableStates.SHOWDOWN);
                         }
 
-                        if (eventListener != null) eventListener.onTableUpdate(this);
+                        int showdownDelay = 0;
+                        if (this.state == TableStates.SHOWDOWN) {
+                            int layers = distributePot();
+                            pot.set(0);
+                            showdownDelay = (layers * 3) + 2;
+                        }
+
+                        if (eventListener != null) {
+                            eventListener.onTableUpdate(this);
+                        }
 
                         if (this.state == TableStates.SHOWDOWN) {
-                            distributePot();
-                            pot.set(0);
-                            scheduleNextHand(5);
+                            scheduleNextHand(showdownDelay);
                         } else {
+                            this.currentMaxBet = 0;
+                            for (Player p : players) {
+                                p.setRoundContribution(0);
+                                if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                                    p.setStatus(PlayerStatus.ACTIVE);
+                                }
+                            }
+
                             long stillCanBet = players.stream()
                                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
                                             p.getStatus() != PlayerStatus.ALL_IN &&
@@ -339,13 +354,6 @@ public class Table {
                             if (stillCanBet < 2) {
                                 endBettingRound();
                             } else {
-                                this.currentMaxBet = 0;
-                                for (Player p : players) {
-                                    p.setRoundContribution(0);
-                                    if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
-                                        p.setStatus(PlayerStatus.ACTIVE);
-                                    }
-                                }
                                 this.activePlayerIdx = dealerIdx;
                                 advanceTurn();
                                 startTimer();
