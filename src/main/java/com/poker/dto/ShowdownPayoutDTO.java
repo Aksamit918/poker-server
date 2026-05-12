@@ -7,6 +7,8 @@ public record ShowdownPayoutDTO(
         @JsonProperty("user_id") String userId,
         long amount,
         @JsonProperty("hand_name") String handName,
-        @JsonProperty("winning_cards") List<String> winningCards,
-        @JsonProperty("is_side_pot") boolean isSidePot
+        @JsonProperty("rank_cards") List<String> rankCards,
+        @JsonProperty("kicker_cards") List<String> kickerCards,
+        @JsonProperty("is_side_pot") boolean isSidePot,
+        @JsonProperty("is_kicker_winner") boolean isKickerWinner
 ) {}

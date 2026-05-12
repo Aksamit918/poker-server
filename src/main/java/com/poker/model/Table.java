@@ -83,9 +83,24 @@ public class Table {
                 this.isTransitioning = false;
 
                 for (Player p : players) {
-                    if (p.getStatus() == PlayerStatus.WAITING) {
+                    if (p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet) {
                         p.setStatus(PlayerStatus.ACTIVE);
                     }
+                }
+
+                long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
+
+                if (activeCount < 2) {
+                    for (Player p : players) {
+                        if (p.getStatus() == PlayerStatus.ACTIVE) {
+                            p.setStatus(PlayerStatus.WAITING);
+                        }
+                    }
+                    this.state = TableStates.WAITING_FOR_PLAYERS;
+                    if (eventListener != null) {
+                        eventListener.onTableUpdate(this);
+                    }
+                    return;
                 }
 
                 setupPositions();
@@ -274,7 +289,6 @@ public class Table {
     public void rebuy(Player player, long amount, long walletBalance) {
         synchronized (lock) {
             long currentChips = player.getChips().get();
-
             long increasedChips = currentChips + amount;
 
             if (increasedChips > maxBuyIn) {
@@ -286,14 +300,17 @@ public class Table {
             }
 
             player.getWalletBalance().set(walletBalance);
-
             player.getChips().addAndGet(amount);
 
             if (player.getStatus() == PlayerStatus.SITTING_OUT) {
                 player.setStatus(PlayerStatus.WAITING);
             }
 
-            if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
+            long readyToPlay = players.stream()
+                    .filter(p -> p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet)
+                    .count();
+
+            if (readyToPlay >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
                 startNewHand();
             }
 
@@ -321,16 +338,22 @@ public class Table {
                             case RIVER -> setTableState(TableStates.SHOWDOWN);
                         }
 
-                        if (eventListener != null) eventListener.onTableUpdate(this);
-
                         if (this.state == TableStates.SHOWDOWN) {
-                            distributePot();
+                            int layers = distributePot();
                             pot.set(0);
+
                             if (eventListener != null) {
                                 eventListener.onTableUpdate(this);
                             }
-                            scheduleNextHand(5);
+
+                            int totalDelay = (layers * 10) + 2;
+                            scheduleNextHand(totalDelay);
+
                         } else {
+                            if (eventListener != null) {
+                                eventListener.onTableUpdate(this);
+                            }
+
                             long stillCanBet = players.stream()
                                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
                                             p.getStatus() != PlayerStatus.ALL_IN &&
@@ -403,7 +426,7 @@ public class Table {
                     .collect(Collectors.toList());
         }
     }
-    private void distributePot() {
+    private int distributePot() {
         lastShowdownPayouts.clear();
         Map<Player, Long> contributions = new HashMap<>();
         for (Player p : players) {
@@ -412,22 +435,27 @@ public class Table {
 
         int potLayerIndex = 0;
         while (!contributions.isEmpty()) {
-            List<Player> eligible = contributions.keySet().stream().filter(Player::isInHand).toList();
-            if (eligible.isEmpty()) break;
+            List<Player> eligibleCandidates = contributions.keySet().stream()
+                    .filter(Player::isInHand).toList();
+            if (eligibleCandidates.isEmpty()) break;
 
-            long minContr = eligible.stream().map(contributions::get).min(Long::compareTo).get();
+            long minContribution = eligibleCandidates.stream()
+                    .map(contributions::get).min(Long::compareTo).orElse(0L);
+
             long currentLayerTotal = 0;
-
-            Iterator<Map.Entry<Player, Long>> it = contributions.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<Player, Long> e = it.next();
-                long taken = Math.min(e.getValue(), minContr);
+            Iterator<Map.Entry<Player, Long>> iterator = contributions.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<Player, Long> entry = iterator.next();
+                long taken = Math.min(entry.getValue(), minContribution);
                 currentLayerTotal += taken;
-                if (e.getValue() - taken == 0) it.remove();
-                else e.setValue(e.getValue() - taken);
+                if (entry.getValue() - taken == 0) iterator.remove();
+                else entry.setValue(entry.getValue() - taken);
             }
 
-            List<Player> winners = determineWinners(eligible);
+            List<Player> winners = determineWinners(eligibleCandidates);
+            List<Player> losers = eligibleCandidates.stream()
+                    .filter(p -> !winners.contains(p)).toList();
+
             long share = currentLayerTotal / winners.size();
             long remainder = currentLayerTotal % winners.size();
 
@@ -436,17 +464,54 @@ public class Table {
                 long winAmount = (i == 0) ? share + remainder : share;
                 w.getChips().addAndGet(winAmount);
 
-                HandResult res = HandEvaluator.evaluate(w.getHand(), communityCards);
+                HandResult winRes = HandEvaluator.evaluate(w.getHand(), communityCards);
+
+                boolean isKickerWinner = false;
+                boolean needKickersInJson = false;
+
+                if (!losers.isEmpty()) {
+                    HandResult bestLoserRes = losers.stream()
+                            .map(l -> HandEvaluator.evaluate(l.getHand(), communityCards))
+                            .max(HandResult::compareTo).get();
+
+                    if (winRes.getCategory() == bestLoserRes.getCategory()) {
+
+                        int mainRanksCount = (winRes.getCategory() == HandCategory.TWO_PAIRS ||
+                                winRes.getCategory() == HandCategory.FULL_HOUSE) ? 2 : 1;
+
+                        boolean mainRanksAreEqual = true;
+                        for (int k = 0; k < mainRanksCount; k++) {
+                            if (winRes.getTieBreakers().get(k).compareTo(bestLoserRes.getTieBreakers().get(k)) != 0) {
+                                mainRanksAreEqual = false;
+                                break;
+                            }
+                        }
+
+                        if (mainRanksAreEqual) {
+                            isKickerWinner = true;
+                            needKickersInJson = true;
+                        }
+                    }
+                }
+
+                if (winRes.getKickerCards().isEmpty()) {
+                    needKickersInJson = false;
+                    isKickerWinner = false;
+                }
+
                 lastShowdownPayouts.add(new ShowdownPayoutDTO(
                         w.getUserId(),
                         winAmount,
-                        res.getCategory().name(),
-                        res.getWinningCards().stream().map(Card::getShortName).toList(),
-                        potLayerIndex > 0
+                        winRes.getCategory().name(),
+                        winRes.getRankCards().stream().map(Card::getShortName).toList(),
+                        needKickersInJson ? winRes.getKickerCards().stream().map(Card::getShortName).toList() : Collections.emptyList(),
+                        potLayerIndex > 0,
+                        isKickerWinner
                 ));
             }
             potLayerIndex++;
         }
+        return potLayerIndex;
     }
 
     public void joinTable(Player player) {
@@ -472,11 +537,18 @@ public class Table {
                 eventListener.onTableUpdate(this);
             }
 
-            if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
+            long playersWithMoney = players.stream()
+                    .filter(p -> p.getChips().get() >= bigBlindBet)
+                    .count();
+
+            if (playersWithMoney >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
                 this.isTransitioning = true;
                 scheduler.schedule(() -> {
                     synchronized (lock) {
-                        if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+                        long checkAgain = players.stream()
+                                .filter(p -> p.getChips().get() >= bigBlindBet)
+                                .count();
+                        if (checkAgain >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                             startNewHand();
                         } else {
                             this.isTransitioning = false;

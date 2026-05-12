@@ -5,16 +5,20 @@ import java.util.List;
 public class HandResult implements Comparable<HandResult> {
     private final HandCategory category;
     private final List<Rank> tieBreakers;
-    private final List<Card> winningCards;
+    private final List<Card> rankCards;   // Карты, образующие ранг
+    private final List<Card> kickerCards; // Вспомогательные карты (кикеры)
 
-    public HandResult(HandCategory category, List<Rank> tieBreakers, List<Card> winningCards) {
+    public HandResult(HandCategory category, List<Rank> tieBreakers, List<Card> rankCards, List<Card> kickerCards) {
         this.category = category;
         this.tieBreakers = tieBreakers;
-        this.winningCards = winningCards;
+        this.rankCards = rankCards;
+        this.kickerCards = kickerCards;
     }
 
     public HandCategory getCategory() { return category; }
-    public List<Card> getWinningCards() { return winningCards; }
+    public List<Card> getRankCards() { return rankCards; }
+    public List<Card> getKickerCards() { return kickerCards; }
+    public List<Rank> getTieBreakers() { return tieBreakers; }
 
     @Override
     public int compareTo(HandResult other) {
