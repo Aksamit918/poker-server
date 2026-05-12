@@ -19,6 +19,7 @@ public class Table {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
     private static final int TURN_TIMEOUT = 15;
+    private static final int STAGE_TRANSITION_DELAY = 2;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -306,8 +307,6 @@ public class Table {
             this.isTransitioning = true;
             stopTimer();
 
-            int delay = 1;
-
             scheduler.schedule(() -> {
                 try {
                     synchronized (lock) {
@@ -355,7 +354,7 @@ public class Table {
                     e.printStackTrace();
                     this.isTransitioning = false;
                 }
-            }, delay, TimeUnit.SECONDS);
+            }, STAGE_TRANSITION_DELAY, TimeUnit.SECONDS);
         }
     }
     private void finishHandPrematurely() {
