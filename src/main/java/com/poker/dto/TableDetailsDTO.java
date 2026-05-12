@@ -25,7 +25,8 @@ public record TableDetailsDTO(
         @JsonProperty("community_cards")
         List<String> communityCards,
         List<PlayerDTO> players,
-        String state
+        String state,
+        @JsonProperty("showdown_details") ShowdownDetailsDTO showdownDetails
 ) {
     public static TableDetailsDTO createTableDetailsDTO(Table table,  String requestingUserId) {
         long pot = table.getPot();
@@ -48,6 +49,11 @@ public record TableDetailsDTO(
                 })
                 .toList();
 
+        ShowdownDetailsDTO showdownDetails = null;
+        if (table.getState() == TableStates.SHOWDOWN) {
+            showdownDetails = new ShowdownDetailsDTO(table.getLastShowdownPayouts());
+        }
+
         return new TableDetailsDTO(
                 "TABLE_UPDATE",
                 table.getId(),
@@ -60,7 +66,8 @@ public record TableDetailsDTO(
                 activePlayerIdx,
                 cardStrings,
                 playerDTOs,
-                state
+                state,
+                showdownDetails
         );
     }
 }

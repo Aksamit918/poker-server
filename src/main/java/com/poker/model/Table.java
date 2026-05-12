@@ -1,12 +1,9 @@
 package com.poker.model;
 
+import com.poker.dto.ShowdownPayoutDTO;
 import com.poker.exception.TableFullException;
 import com.poker.exception.*;
-import com.poker.util.HandEvaluator;
-import com.poker.util.PlayerLeaveListener;
 import com.poker.util.TableEventListener;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -41,6 +38,7 @@ public class Table {
     private long currentMaxBet = 0;
     private final long smallBlindBet;
     private final long bigBlindBet;
+    private List<ShowdownPayoutDTO> lastShowdownPayouts = new ArrayList<>();
 
     public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
                  boolean isPrivate, String passcode, TableEventListener eventListener) {
@@ -328,6 +326,9 @@ public class Table {
                         if (this.state == TableStates.SHOWDOWN) {
                             distributePot();
                             pot.set(0);
+                            if (eventListener != null) {
+                                eventListener.onTableUpdate(this);
+                            }
                             scheduleNextHand(5);
                         } else {
                             long stillCanBet = players.stream()
@@ -402,74 +403,50 @@ public class Table {
                     .collect(Collectors.toList());
         }
     }
-    private int distributePot() {
+    private void distributePot() {
+        lastShowdownPayouts.clear();
         Map<Player, Long> contributions = new HashMap<>();
         for (Player p : players) {
-            if (p.getTotalInHand() > 0) {
-                contributions.put(p, p.getTotalInHand());
-            }
+            if (p.getTotalInHand() > 0) contributions.put(p, p.getTotalInHand());
         }
 
-        int potLayers = 0;
-
+        int potLayerIndex = 0;
         while (!contributions.isEmpty()) {
+            List<Player> eligible = contributions.keySet().stream().filter(Player::isInHand).toList();
+            if (eligible.isEmpty()) break;
 
-            List<Player> eligibleCandidates = contributions.keySet().stream()
-                    .filter(Player::isInHand)
-                    .toList();
+            long minContr = eligible.stream().map(contributions::get).min(Long::compareTo).get();
+            long currentLayerTotal = 0;
 
-            if (eligibleCandidates.isEmpty()) {
-                break;
+            Iterator<Map.Entry<Player, Long>> it = contributions.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<Player, Long> e = it.next();
+                long taken = Math.min(e.getValue(), minContr);
+                currentLayerTotal += taken;
+                if (e.getValue() - taken == 0) it.remove();
+                else e.setValue(e.getValue() - taken);
             }
 
-            long minContribution = eligibleCandidates.stream()
-                    .map(contributions::get)
-                    .min(Long::compareTo)
-                    .orElse(0L);
-
-            if (minContribution == 0) break;
-
-            int currentPotLayer = 0;
-            Iterator<Map.Entry<Player, Long>> iterator = contributions.entrySet().iterator();
-
-            while (iterator.hasNext()) {
-                Map.Entry<Player, Long> entry = iterator.next();
-                long playerContributed = entry.getValue();
-
-                long taken = Math.min(playerContributed, minContribution);
-
-                currentPotLayer += taken;
-                long newValue = playerContributed - taken;
-
-                if (newValue == 0) {
-                    iterator.remove();
-                } else {
-                    entry.setValue(newValue);
-                }
-            }
-
-            List<Player> winners = determineWinners(eligibleCandidates);
-
-            if (winners.isEmpty()) {
-                System.err.println("CRITICAL ERROR: No winners found in distributePot!");
-                break;
-            }
-
-            int share = currentPotLayer / winners.size();
-            int remainder = currentPotLayer % winners.size();
+            List<Player> winners = determineWinners(eligible);
+            long share = currentLayerTotal / winners.size();
+            long remainder = currentLayerTotal % winners.size();
 
             for (int i = 0; i < winners.size(); i++) {
-                if (i == 0) {
-                    winners.get(i).getChips().addAndGet(share + remainder);
-                } else {
-                    winners.get(i).getChips().addAndGet(share);
-                }
+                Player w = winners.get(i);
+                long winAmount = (i == 0) ? share + remainder : share;
+                w.getChips().addAndGet(winAmount);
+
+                HandResult res = HandEvaluator.evaluate(w.getHand(), communityCards);
+                lastShowdownPayouts.add(new ShowdownPayoutDTO(
+                        w.getUserId(),
+                        winAmount,
+                        res.getCategory().name(),
+                        res.getWinningCards().stream().map(Card::getShortName).toList(),
+                        potLayerIndex > 0
+                ));
             }
-
-            potLayers++;
+            potLayerIndex++;
         }
-
-        return potLayers;
     }
 
     public void joinTable(Player player) {
@@ -621,6 +598,7 @@ public class Table {
         this.currentMaxBet = 0;
         this.activePlayerIdx = -1;
         this.state = TableStates.WAITING_FOR_PLAYERS;
+        this.lastShowdownPayouts.clear();
 
         for (Player p : players) {
             p.clearHand();
@@ -798,5 +776,8 @@ public class Table {
                     .filter(p -> p.getUserId().equals(userId))
                     .findFirst();
         }
+    }
+    public List<ShowdownPayoutDTO> getLastShowdownPayouts() {
+        return lastShowdownPayouts;
     }
 }

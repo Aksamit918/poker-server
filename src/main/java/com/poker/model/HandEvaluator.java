@@ -42,87 +42,78 @@ public class HandEvaluator {
     public static HandResult evaluate(List<Card> hand, List<Card> communityCards) {
         List<Card> allCards = new ArrayList<>(hand);
         allCards.addAll(communityCards);
+        allCards.sort(Comparator.comparing(Card::getRank).reversed());
 
         Map<Suit, Long> suitCounts = getSuitCounts(allCards);
         Map<Rank, Long> rankCounts = getRankCounts(allCards);
         List<Rank> sortedUniqueRanks = rankCounts.keySet().stream().sorted(Comparator.reverseOrder()).toList();
 
         Suit flushSuit = suitCounts.entrySet().stream()
-                .filter(e -> e.getValue() >= 5)
-                .map(Map.Entry::getKey)
-                .findFirst()
-                .orElse(null);
+                .filter(e -> e.getValue() >= 5).map(Map.Entry::getKey).findFirst().orElse(null);
 
         if (flushSuit != null) {
-            List<Rank> flushRanks = allCards.stream()
-                    .filter(c -> c.getSuit() == flushSuit)
-                    .map(Card::getRank)
-                    .distinct()
-                    .sorted(Comparator.reverseOrder())
-                    .toList();
-
-            List<Rank> strFlushSeq = getSequenceOfFive(flushRanks);
-            if (!strFlushSeq.isEmpty()) {
-                if (strFlushSeq.get(0) == Rank.ACE && strFlushSeq.get(1) == Rank.KING) {
-                    return new HandResult(HandCategory.ROYAL_FLUSH, Collections.emptyList());
-                }
-                return new HandResult(HandCategory.STRAIGHT_FLUSH, List.of(strFlushSeq.get(0)));
+            List<Card> suitCards = allCards.stream().filter(c -> c.getSuit() == flushSuit).toList();
+            List<Rank> sequence = getSequenceOfFive(suitCards.stream().map(Card::getRank).toList());
+            if (!sequence.isEmpty()) {
+                List<Card> winCards = sequence.stream().map(r -> suitCards.stream().filter(c -> c.getRank() == r).findFirst().get()).toList();
+                if (sequence.get(0) == Rank.ACE && sequence.get(1) == Rank.KING)
+                    return new HandResult(HandCategory.ROYAL_FLUSH, Collections.emptyList(), winCards);
+                return new HandResult(HandCategory.STRAIGHT_FLUSH, List.of(sequence.get(0)), winCards);
             }
         }
 
         List<Rank> quads = getRanksWithCount(rankCounts, 4);
         if (!quads.isEmpty()) {
-            Rank main = quads.get(0);
-            Rank kicker = sortedUniqueRanks.stream().filter(r -> r != main).findFirst().orElse(main);
-            return new HandResult(HandCategory.FOUR_OF_A_KIND, List.of(main, kicker));
+            Rank m = quads.get(0);
+            List<Card> win = new ArrayList<>(allCards.stream().filter(c -> c.getRank() == m).toList());
+            win.add(allCards.stream().filter(c -> c.getRank() != m).findFirst().get());
+            return new HandResult(HandCategory.FOUR_OF_A_KIND, List.of(m), win);
         }
 
         List<Rank> trips = getRanksWithCount(rankCounts, 3);
         List<Rank> pairs = getRanksWithCount(rankCounts, 2);
-        if (trips.size() >= 2) {
-            return new HandResult(HandCategory.FULL_HOUSE, List.of(trips.get(0), trips.get(1)));
-        } else if (trips.size() == 1 && !pairs.isEmpty()) {
-            return new HandResult(HandCategory.FULL_HOUSE, List.of(trips.get(0), pairs.get(0)));
+        if (trips.size() >= 2 || (trips.size() == 1 && !pairs.isEmpty())) {
+            Rank t = trips.get(0);
+            Rank p = (trips.size() >= 2) ? trips.get(1) : pairs.get(0);
+            List<Card> win = new ArrayList<>(allCards.stream().filter(c -> c.getRank() == t).toList());
+            win.addAll(allCards.stream().filter(c -> c.getRank() == p).limit(2).toList());
+            return new HandResult(HandCategory.FULL_HOUSE, List.of(t, p), win);
         }
 
         if (flushSuit != null) {
-            List<Rank> tieBreakers = allCards.stream()
-                    .filter(c -> c.getSuit() == flushSuit)
-                    .map(Card::getRank)
-                    .sorted(Comparator.reverseOrder())
-                    .limit(5)
-                    .toList();
-            return new HandResult(HandCategory.FLUSH, tieBreakers);
+            List<Card> win = allCards.stream().filter(c -> c.getSuit() == flushSuit).limit(5).toList();
+            return new HandResult(HandCategory.FLUSH, win.stream().map(Card::getRank).toList(), win);
         }
 
         List<Rank> strSeq = getSequenceOfFive(sortedUniqueRanks);
         if (!strSeq.isEmpty()) {
-            return new HandResult(HandCategory.STRAIGHT, List.of(strSeq.get(0)));
+            List<Card> win = strSeq.stream().map(r -> allCards.stream().filter(c -> c.getRank() == r).findFirst().get()).toList();
+            return new HandResult(HandCategory.STRAIGHT, List.of(strSeq.get(0)), win);
         }
 
         if (!trips.isEmpty()) {
-            Rank main = trips.get(0);
-            List<Rank> tieBreakers = new ArrayList<>();
-            tieBreakers.add(main);
-            tieBreakers.addAll(sortedUniqueRanks.stream().filter(r -> r != main).limit(2).toList());
-            return new HandResult(HandCategory.THREE_OF_A_KIND, tieBreakers);
+            Rank m = trips.get(0);
+            List<Card> win = new ArrayList<>(allCards.stream().filter(c -> c.getRank() == m).toList());
+            win.addAll(allCards.stream().filter(c -> c.getRank() != m).limit(2).toList());
+            return new HandResult(HandCategory.THREE_OF_A_KIND, List.of(m), win);
         }
 
         if (pairs.size() >= 2) {
-            Rank p1 = pairs.get(0);
-            Rank p2 = pairs.get(1);
-            Rank kicker = sortedUniqueRanks.stream().filter(r -> r != p1 && r != p2).findFirst().orElse(p1);
-            return new HandResult(HandCategory.TWO_PAIRS, List.of(p1, p2, kicker));
+            Rank p1 = pairs.get(0); Rank p2 = pairs.get(1);
+            List<Card> win = new ArrayList<>(allCards.stream().filter(c -> c.getRank() == p1).toList());
+            win.addAll(allCards.stream().filter(c -> c.getRank() == p2).toList());
+            win.add(allCards.stream().filter(c -> c.getRank() != p1 && c.getRank() != p2).findFirst().get());
+            return new HandResult(HandCategory.TWO_PAIRS, List.of(p1, p2), win);
         }
 
         if (pairs.size() == 1) {
             Rank p1 = pairs.get(0);
-            List<Rank> tieBreakers = new ArrayList<>();
-            tieBreakers.add(p1);
-            tieBreakers.addAll(sortedUniqueRanks.stream().filter(r -> r != p1).limit(3).toList());
-            return new HandResult(HandCategory.ONE_PAIR, tieBreakers);
+            List<Card> win = new ArrayList<>(allCards.stream().filter(c -> c.getRank() == p1).toList());
+            win.addAll(allCards.stream().filter(c -> c.getRank() != p1).limit(3).toList());
+            return new HandResult(HandCategory.ONE_PAIR, List.of(p1), win);
         }
 
-        return new HandResult(HandCategory.HIGH_CARD, sortedUniqueRanks.stream().limit(5).toList());
+        List<Card> win = allCards.stream().limit(5).toList();
+        return new HandResult(HandCategory.HIGH_CARD, win.stream().map(Card::getRank).toList(), win);
     }
 }
