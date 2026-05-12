@@ -191,8 +191,7 @@ public class TableController {
         table.rebuy(player, amount, realWalletBalance);
 
         return new RebuyResponseDTO(
-                player.getChips().get(),
-                realWalletBalance
+                player.getChips().get()
         );
     }
 
