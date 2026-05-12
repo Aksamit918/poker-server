@@ -130,20 +130,4 @@ public class AuthController {
             return ResponseEntity.status(403).body(e.getMessage());
         }
     }
-
-    @GetMapping("/{id}/balance")
-    public ResponseEntity<?> getBalance(@RequestHeader("Authorization") String authHeader,
-                                        @PathVariable Long id) {
-        try {
-            String token = extractToken(authHeader);
-            accountService.validateSession(id, token);
-
-            Account account = accountService.findById(id);
-
-            return ResponseEntity.ok(new com.poker.dto.LeaveResponseDTO(account.getBalance()));
-
-        } catch (Exception e) {
-            return ResponseEntity.status(401).body(e.getMessage());
-        }
-    }
 }

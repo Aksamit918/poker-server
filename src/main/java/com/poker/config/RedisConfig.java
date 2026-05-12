@@ -31,8 +31,8 @@ public class RedisConfig {
         container.setConnectionFactory(connectionFactory);
 
         container.addMessageListener(subscriber, new PatternTopic("poker:table:*"));
-
         container.addMessageListener(subscriber, new PatternTopic("poker:lobby"));
+        container.addMessageListener(subscriber, new PatternTopic("poker:wallet:*"));
 
         return container;
     }

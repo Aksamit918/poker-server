@@ -34,6 +34,7 @@ public class AccountService {
     private final Map<String, Long> tokenToUserId = new ConcurrentHashMap<>();
     private final TableManager tableManager;
     private final java.time.OffsetDateTime serverStartTime = java.time.OffsetDateTime.now();
+    private final GameEventPublisher eventPublisher;
 
     private final long DAILY_BONUS_AMOUNT = 5000L;
 
@@ -41,12 +42,14 @@ public class AccountService {
                           TransactionRepository transactionRepository,
                           GameTableRepository gameTableRepository,
                           BCryptPasswordEncoder passwordEncoder,
-                          @Lazy TableManager tableManager) {
+                          @Lazy TableManager tableManager,
+                          @Lazy GameEventPublisher eventPublisher) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.gameTableRepository = gameTableRepository;
         this.passwordEncoder = passwordEncoder;
         this.tableManager = tableManager;
+        this.eventPublisher = eventPublisher;
     }
 
     public void validateSession(Long userId, String token) {
@@ -237,6 +240,8 @@ public class AccountService {
 
         Transaction tx = new Transaction(account, table, -amount, type);
         transactionRepository.save(tx);
+
+        eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
     }
 
     @Transactional
@@ -262,5 +267,7 @@ public class AccountService {
 
         Transaction tx = new Transaction(account, table, amount, type);
         transactionRepository.save(tx);
+
+        eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
     }
 }
