@@ -139,7 +139,11 @@ public class Table {
 
                     if (readyPlayers < MIN_PLAYERS) {
                         this.isTransitioning = false;
-                        if (eventListener != null) eventListener.onTableUpdate(this);
+                        this.state = TableStates.WAITING_FOR_PLAYERS;
+                        if (eventListener != null) {
+                            eventListener.onTableUpdate(this);
+                        }
+                        System.out.println("DEBUG: Not enough players to start. Table is now waiting.");
                         return;
                     }
 
@@ -291,7 +295,7 @@ public class Table {
                 player.setStatus(PlayerStatus.WAITING);
             }
 
-            if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
+            if (players.size() >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
                 startNewHand();
             }
 
