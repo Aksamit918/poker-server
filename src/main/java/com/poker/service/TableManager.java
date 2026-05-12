@@ -51,7 +51,7 @@ public class TableManager implements TableEventListener {
     }
 
     @Override
-    public void onPlayerLeave(String userId, long chips) {
+    public void onPlayerLeave(String userId, long chips)    {
         String tableId = activePlayers.get(userId);
         if (tableId == null) return;
 
@@ -62,6 +62,7 @@ public class TableManager implements TableEventListener {
             Account account = accountService.findById(Long.parseLong(userId));
             realNickname = account.getNickname();
         } catch (Exception ignored) {
+
         }
 
         eventPublisher.publishPlayerStatus(new PlayerStatusEvent(

@@ -135,7 +135,7 @@ public class TableController {
 
 
     @PostMapping("/{id}/leave")
-    public TableDetailsDTO leaveTable(@RequestHeader("Authorization") String authHeader,
+    public LeaveResponseDTO leaveTable(@RequestHeader("Authorization") String authHeader,
                                       @PathVariable String id,
                                       @RequestBody LeaveRequestDTO request) {
         String token = extractToken(authHeader);
@@ -153,7 +153,9 @@ public class TableController {
 
         table.leaveTable(player);
 
-        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
+        Account account = accountService.findById(Long.parseLong(request.userId()));
+
+        return new LeaveResponseDTO(account.getBalance());
     }
 
     @PostMapping("/{id}/rebuy")
