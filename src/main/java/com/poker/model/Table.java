@@ -17,6 +17,9 @@ public class Table {
     private ScheduledFuture<?> currentTimer;
     private static final int TURN_TIMEOUT = 15;
     private static final int STAGE_TRANSITION_DELAY = 2;
+    private static final int REBUY_TIMEOUT = 30;
+    private static final int SHOWDOWN_BASE_DELAY = 2;
+    private static final int SHOWDOWN_LAYER_DELAY = 10;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -346,7 +349,7 @@ public class Table {
                                 eventListener.onTableUpdate(this);
                             }
 
-                            int totalDelay = (layers * 10) + 2;
+                            int totalDelay = (layers * SHOWDOWN_LAYER_DELAY) + SHOWDOWN_BASE_DELAY;
                             scheduleNextHand(totalDelay);
 
                         } else {
@@ -697,7 +700,7 @@ public class Table {
                                 } catch (Exception ignored) {}
                             }
                         }
-                    }, 30, TimeUnit.SECONDS);
+                    }, REBUY_TIMEOUT, TimeUnit.SECONDS);
                 }
             } else {
                 p.setStatus(PlayerStatus.WAITING);

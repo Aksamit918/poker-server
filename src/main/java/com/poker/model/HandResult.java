@@ -5,8 +5,8 @@ import java.util.List;
 public class HandResult implements Comparable<HandResult> {
     private final HandCategory category;
     private final List<Rank> tieBreakers;
-    private final List<Card> rankCards;   // Карты, образующие ранг
-    private final List<Card> kickerCards; // Вспомогательные карты (кикеры)
+    private final List<Card> rankCards;
+    private final List<Card> kickerCards;
 
     public HandResult(HandCategory category, List<Rank> tieBreakers, List<Card> rankCards, List<Card> kickerCards) {
         this.category = category;
