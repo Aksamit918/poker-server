@@ -15,11 +15,13 @@ import com.poker.service.TableManager;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -135,17 +137,17 @@ public class TableController {
 
 
     @PostMapping("/{id}/leave")
-    public LeaveResponseDTO leaveTable(@RequestHeader("Authorization") String authHeader,
-                                      @PathVariable String id,
-                                      @RequestBody LeaveRequestDTO request) {
-        String token = extractToken(authHeader);
+    public ResponseEntity<Map<String, String>> leaveTable(@RequestHeader("Authorization") String authHeader,
+                                                          @PathVariable String id,
+                                                          @RequestBody LeaveRequestDTO request) {
 
-        accountService.validateSession(Long.parseLong(request.userId()), token);
+        String token = extractToken(authHeader);
+        Long userId = Long.parseLong(request.userId());
+        accountService.validateSession(userId, token);
 
         Table table = tableManager.getTable(id);
-
         if (table == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "error.table.not.found");
         }
 
         Player player = table.findPlayerById(request.userId())
@@ -153,9 +155,7 @@ public class TableController {
 
         table.leaveTable(player);
 
-        Account account = accountService.findById(Long.parseLong(request.userId()));
-
-        return new LeaveResponseDTO(account.getBalance());
+        return ResponseEntity.ok(Map.of("status", "success", "message", "Player left the table"));
     }
 
     @PostMapping("/{id}/rebuy")
