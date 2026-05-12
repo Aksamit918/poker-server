@@ -9,6 +9,8 @@ import com.poker.service.AccountService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.poker.model.Table;
+
+import java.util.Map;
 import java.util.Optional;
 import com.poker.service.TableManager;
 
@@ -128,6 +130,20 @@ public class AuthController {
             return ResponseEntity.ok("Account deleted successfully");
         } catch (Exception e) {
             return ResponseEntity.status(403).body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/balance")
+    public ResponseEntity<?> getBalance(@RequestHeader("Authorization") String authHeader,
+                                        @PathVariable Long id) {
+        try {
+            String token = extractToken(authHeader);
+            accountService.validateSession(id, token);
+
+            Account account = accountService.findById(id);
+            return ResponseEntity.ok(Map.of("wallet_balance", account.getBalance()));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(e.getMessage());
         }
     }
 }
