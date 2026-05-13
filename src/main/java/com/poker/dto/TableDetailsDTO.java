@@ -50,7 +50,7 @@ public record TableDetailsDTO(
                 .toList();
 
         ShowdownDetailsDTO showdownDetails = null;
-        if (table.getState() == TableStates.SHOWDOWN) {
+        if (table.getState() == TableStates.SHOWDOWN || table.getState() == TableStates.CLEANUP) {
             showdownDetails = new ShowdownDetailsDTO(table.getLastShowdownPayouts());
         }
 

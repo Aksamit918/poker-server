@@ -405,8 +405,24 @@ public class Table {
                     .filter(Player::isInHand)
                     .toList();
 
+            lastShowdownPayouts.clear();
+
             if (!winners.isEmpty()) {
-                winners.get(0).getChips().addAndGet(pot.get());
+                Player winner = winners.get(0);
+                long winAmount = pot.get();
+
+                winner.getChips().addAndGet(winAmount);
+
+                lastShowdownPayouts.add(new ShowdownPayoutDTO(
+                        winner.getUserId(),
+                        winAmount,
+                        "NO_SHOWDOWN",
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        false,
+                        false
+                ));
+
                 pot.set(0);
             }
 
