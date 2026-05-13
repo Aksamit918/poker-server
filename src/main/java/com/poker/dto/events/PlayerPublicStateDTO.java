@@ -11,7 +11,8 @@ public record PlayerPublicStateDTO(
         long chips,
         String status,
         @JsonProperty("round_contribution") long roundContribution,
-        @JsonProperty("is_active") boolean active
+        @JsonProperty("is_active") boolean active,
+         @JsonProperty("sit_out_deadline") long sitOutDeadline
 ) {
     public static PlayerPublicStateDTO fromPlayer(Player player) {
         String displayStatus = player.getStatus().name();
@@ -26,7 +27,8 @@ public record PlayerPublicStateDTO(
                 player.getChips().get(),
                 displayStatus,
                 player.getRoundContribution(),
-                player.canAct()
+                player.canAct(),
+                player.getSitOutDeadline()
         );
     }
 }

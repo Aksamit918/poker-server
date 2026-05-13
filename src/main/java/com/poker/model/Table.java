@@ -236,6 +236,10 @@ public class Table {
     }
     private void processCall(Player player) {
         long amountToCall = currentMaxBet - player.getRoundContribution();
+        if (player.getChips().get() < amountToCall) {
+            processAllIn(player);
+            return;
+        }
         if (amountToCall <= 0) {
             throw new IllegalCallException("error.illegal.call");
         }
@@ -307,6 +311,7 @@ public class Table {
 
             if (player.getStatus() == PlayerStatus.SITTING_OUT) {
                 player.setStatus(PlayerStatus.WAITING);
+                player.setSitOutDeadline(0L);
             }
 
             long readyToPlay = players.stream()
@@ -567,11 +572,12 @@ public class Table {
                 throw new PlayerNotFoundException("error.player.not.found");
             }
 
-            int removedIdx = players.indexOf(player);
+            boolean wasActivePlayer = false;
 
             if (player.isInHand()) {
                 if (isPlayerTurn(player)) {
                     stopTimer();
+                    wasActivePlayer = true;
                 }
                 processFold(player);
             }
@@ -580,11 +586,7 @@ public class Table {
 
             if (eventListener != null) {
                 eventListener.onPlayerLeave(player.getUserId(), player.getChips().get());
-                eventListener.onTableUpdate(this);
-            }
-
-            if (removedIdx <= dealerIdx) {
-                dealerIdx--;
+                // eventListener.onTableUpdate(this);
             }
 
             if (players.isEmpty()) {
@@ -597,8 +599,6 @@ public class Table {
                 return;
             }
 
-            activePlayerIdx = (activePlayerIdx - 1 + players.size()) % players.size();
-
             long playersInHand = players.stream()
                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.WAITING)
                     .count();
@@ -608,11 +608,13 @@ public class Table {
                 return;
             }
 
-            boolean hasNext = advanceTurn();
-            if (!hasNext) {
-                endBettingRound();
-            } else {
-                startTimer();
+            if (wasActivePlayer) {
+                boolean hasNext = advanceTurn();
+                if (!hasNext) {
+                    endBettingRound();
+                } else {
+                    startTimer();
+                }
             }
         }
     }
@@ -675,25 +677,27 @@ public class Table {
         this.state = TableStates.WAITING_FOR_PLAYERS;
         this.lastShowdownPayouts.clear();
 
+        List<Player> toRemove = new ArrayList<>();
         for (Player p : players) {
             p.clearHand();
             p.setTotalInHand(0);
             p.setRoundContribution(0);
 
             if (p.getChips().get() < bigBlindBet) {
+                long totalMoney = p.getWalletBalance().get() + p.getChips().get();
+                if (totalMoney < bigBlindBet) {
+                    toRemove.add(p);
+                    continue;
+                }
+
                 if (p.getStatus() != PlayerStatus.SITTING_OUT) {
-
-                    long totalMoney = p.getWalletBalance().get() + p.getChips().get();
-                    if (totalMoney < bigBlindBet) {
-                        leaveTable(p);
-                        continue;
-                    }
-
                     p.setStatus(PlayerStatus.SITTING_OUT);
+                    p.setSitOutDeadline(System.currentTimeMillis() + (REBUY_TIMEOUT * 1000L));
 
                     scheduler.schedule(() -> {
                         synchronized (lock) {
-                            if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT) {
+                            if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT
+                                    && System.currentTimeMillis() >= p.getSitOutDeadline()) {
                                 try {
                                     leaveTable(p);
                                     if (eventListener != null) eventListener.onTableUpdate(this);
@@ -704,8 +708,14 @@ public class Table {
                 }
             } else {
                 p.setStatus(PlayerStatus.WAITING);
+                p.setSitOutDeadline(0L);
             }
         }
+
+        for (Player p : toRemove) {
+            leaveTable(p);
+        }
+
         this.deck = new Deck();
     }
 

@@ -18,6 +18,7 @@ public class Player {
     private long totalInHand = 0L;
     private final List<Card> hand;
     private int missedTurns = 0;
+    private long sitOutDeadline = 0L;
 
     public Player(String userId, String name, int seatIndex, AtomicLong remainingWallet, AtomicLong chips) {
         this.userId = userId;
@@ -112,6 +113,12 @@ public class Player {
     }
     public boolean isKickRequired() {
         return missedTurns >= 3;
+    }
+    public long getSitOutDeadline() {
+        return sitOutDeadline;
+    }
+    public void setSitOutDeadline(long sitOutDeadline) {
+        this.sitOutDeadline = sitOutDeadline;
     }
 
     @Override

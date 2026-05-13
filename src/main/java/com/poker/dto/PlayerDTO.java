@@ -17,10 +17,14 @@ public record PlayerDTO(
         String status,
         @JsonProperty("is_active") boolean active,
         @JsonProperty("round_contribution") long roundContribution,
-        @JsonProperty("amount_to_call") long amountToCall
+        @JsonProperty("amount_to_call") long amountToCall,
+        @JsonProperty("sit_out_deadline") long sitOutDeadline
 ) {
     public static PlayerDTO fromPlayer(Player player, long currentMaxBet, boolean isOwner, boolean isShowdown) {
         long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
+        if (toCall > player.getChips().get()) {
+            toCall = player.getChips().get();
+        }
 
         List<String> cards = Collections.emptyList();
 
@@ -44,7 +48,8 @@ public record PlayerDTO(
                 displayStatus,
                 player.canAct(),
                 player.getRoundContribution(),
-                toCall
+                toCall,
+                player.getSitOutDeadline()
         );
     }
 }
