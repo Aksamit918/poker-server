@@ -538,7 +538,7 @@ public class Table {
                             existing.handName(),
                             existing.rankCards(),
                             existing.kickerCards(),
-                            existing.isSidePot() || (potLayerIndex > 0),
+                            existing.isSidePot(),
                             existing.isKickerWinner() || isKickerWinner
                     );
 
