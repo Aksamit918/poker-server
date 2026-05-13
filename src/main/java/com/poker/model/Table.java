@@ -19,7 +19,7 @@ public class Table {
     private static final int STAGE_TRANSITION_DELAY = 2;
     private static final int REBUY_TIMEOUT = 30;
     private static final int SHOWDOWN_BASE_DELAY = 2;
-    private static final int SHOWDOWN_LAYER_DELAY = 10;
+    private static final int SHOWDOWN_LAYER_DELAY = 5;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -692,12 +692,13 @@ public class Table {
 
                 if (p.getStatus() != PlayerStatus.SITTING_OUT) {
                     p.setStatus(PlayerStatus.SITTING_OUT);
-                    p.setSitOutDeadline(System.currentTimeMillis() + (REBUY_TIMEOUT * 1000L));
+                    final long expectedDeadline = System.currentTimeMillis() + (REBUY_TIMEOUT * 1000L);
+                    p.setSitOutDeadline(expectedDeadline);
 
                     scheduler.schedule(() -> {
                         synchronized (lock) {
                             if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT
-                                    && System.currentTimeMillis() >= p.getSitOutDeadline()) {
+                                    && p.getSitOutDeadline() == expectedDeadline) {
                                 try {
                                     leaveTable(p);
                                     if (eventListener != null) eventListener.onTableUpdate(this);
