@@ -436,16 +436,21 @@ public class Table {
     }
     private int distributePot() {
         lastShowdownPayouts.clear();
+        Map<String, ShowdownPayoutDTO> aggregatedPayouts = new HashMap<>();
         Map<Player, Long> contributions = new HashMap<>();
         for (Player p : players) {
-            if (p.getTotalInHand() > 0) contributions.put(p, p.getTotalInHand());
+            if (p.getTotalInHand() > 0) {
+                contributions.put(p, p.getTotalInHand());
+            }
         }
 
         int potLayerIndex = 0;
         while (!contributions.isEmpty()) {
             List<Player> eligibleCandidates = contributions.keySet().stream()
                     .filter(Player::isInHand).toList();
-            if (eligibleCandidates.isEmpty()) break;
+            if (eligibleCandidates.isEmpty()) {
+                break;
+            }
 
             long minContribution = eligibleCandidates.stream()
                     .map(contributions::get).min(Long::compareTo).orElse(0L);
@@ -456,8 +461,11 @@ public class Table {
                 Map.Entry<Player, Long> entry = iterator.next();
                 long taken = Math.min(entry.getValue(), minContribution);
                 currentLayerTotal += taken;
-                if (entry.getValue() - taken == 0) iterator.remove();
-                else entry.setValue(entry.getValue() - taken);
+                if (entry.getValue() - taken == 0) {
+                    iterator.remove();
+                } else {
+                    entry.setValue(entry.getValue() - taken);
+                }
             }
 
             List<Player> winners = determineWinners(eligibleCandidates);
@@ -507,18 +515,39 @@ public class Table {
                     isKickerWinner = false;
                 }
 
-                lastShowdownPayouts.add(new ShowdownPayoutDTO(
-                        w.getUserId(),
-                        winAmount,
-                        winRes.getCategory().name(),
-                        winRes.getRankCards().stream().map(Card::getShortName).toList(),
-                        needKickersInJson ? winRes.getKickerCards().stream().map(Card::getShortName).toList() : Collections.emptyList(),
-                        potLayerIndex > 0,
-                        isKickerWinner
-                ));
+                String userId = w.getUserId();
+                ShowdownPayoutDTO newDTO = null;
+                if (!aggregatedPayouts.containsKey(userId)) {
+                    newDTO = new ShowdownPayoutDTO(
+                            w.getUserId(),
+                            winAmount,
+                            winRes.getCategory().name(),
+                            winRes.getRankCards().stream().map(Card::getShortName).toList(),
+                            needKickersInJson ? winRes.getKickerCards().stream().map(Card::getShortName).toList() : Collections.emptyList(),
+                            potLayerIndex > 0,
+                            isKickerWinner
+                    );
+
+                    aggregatedPayouts.put(userId, newDTO);
+                } else {
+                    ShowdownPayoutDTO existing = aggregatedPayouts.get(userId);
+
+                    newDTO = new ShowdownPayoutDTO(
+                            existing.userId(),
+                            existing.amount() + winAmount,
+                            existing.handName(),
+                            existing.rankCards(),
+                            existing.kickerCards(),
+                            existing.isSidePot() || (potLayerIndex > 0),
+                            existing.isKickerWinner() || isKickerWinner
+                    );
+
+                    aggregatedPayouts.put(userId, newDTO);
+                }
             }
             potLayerIndex++;
         }
+        lastShowdownPayouts.addAll(aggregatedPayouts.values());
         return potLayerIndex;
     }
 
