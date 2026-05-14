@@ -334,6 +334,26 @@ public class Table {
             this.isTransitioning = true;
             stopTimer();
 
+            List<Player> sortedByContrib = players.stream()
+                    .filter(p -> p.getRoundContribution() > 0)
+                    .sorted((p1, p2) -> Long.compare(p2.getRoundContribution(), p1.getRoundContribution()))
+                    .toList();
+
+            if (!sortedByContrib.isEmpty()) {
+                Player topPlayer = sortedByContrib.get(0);
+                long maxContrib = topPlayer.getRoundContribution();
+                long secondMax = (sortedByContrib.size() > 1) ? sortedByContrib.get(1).getRoundContribution() : 0;
+
+                long refund = maxContrib - secondMax;
+                if (refund > 0) {
+                    topPlayer.getChips().addAndGet(refund);
+                    topPlayer.setRoundContribution(maxContrib - refund);
+                    topPlayer.setTotalInHand(topPlayer.getTotalInHand() - refund);
+                    pot.addAndGet(-refund);
+                    this.currentMaxBet = secondMax;
+                }
+            }
+
             scheduler.schedule(() -> {
                 try {
                     synchronized (lock) {
@@ -409,8 +429,21 @@ public class Table {
 
             if (!winners.isEmpty()) {
                 Player winner = winners.get(0);
-                long winAmount = pot.get();
 
+                long winnerTotal = winner.getTotalInHand();
+                long secondMaxTotal = players.stream()
+                        .filter(p -> p != winner)
+                        .mapToLong(Player::getTotalInHand)
+                        .max().orElse(0);
+
+                long refund = winnerTotal - secondMaxTotal;
+                if (refund > 0) {
+                    winner.getChips().addAndGet(refund);
+                    winner.setTotalInHand(winnerTotal - refund);
+                    pot.addAndGet(-refund);
+                }
+
+                long winAmount = pot.get();
                 winner.getChips().addAndGet(winAmount);
 
                 lastShowdownPayouts.add(new ShowdownPayoutDTO(
@@ -715,54 +748,69 @@ public class Table {
         }, TURN_TIMEOUT, TimeUnit.SECONDS);
     }
     private void cleanupTable() {
-        this.communityCards.clear();
-        this.pot.set(0);
-        this.currentMaxBet = 0;
-        this.activePlayerIdx = -1;
-        this.state = TableStates.WAITING_FOR_PLAYERS;
-        this.lastShowdownPayouts.clear();
+        synchronized (lock) {
+            this.communityCards.clear();
+            this.pot.set(0);
+            this.currentMaxBet = 0;
+            this.activePlayerIdx = -1;
+            this.state = TableStates.WAITING_FOR_PLAYERS;
+            this.lastShowdownPayouts.clear();
 
-        List<Player> toRemove = new ArrayList<>();
-        for (Player p : players) {
-            p.clearHand();
-            p.setTotalInHand(0);
-            p.setRoundContribution(0);
+            for (Player p : players) {
+                p.clearHand();
+                p.setTotalInHand(0);
+                p.setRoundContribution(0);
 
-            if (p.getChips().get() < bigBlindBet) {
                 long totalMoney = p.getWalletBalance().get() + p.getChips().get();
+
                 if (totalMoney < bigBlindBet) {
-                    toRemove.add(p);
-                    continue;
-                }
+                    if (p.getStatus() != PlayerStatus.SITTING_OUT) {
+                        p.setStatus(PlayerStatus.SITTING_OUT);
 
-                if (p.getStatus() != PlayerStatus.SITTING_OUT) {
-                    p.setStatus(PlayerStatus.SITTING_OUT);
-                    final long expectedDeadline = System.currentTimeMillis() + (REBUY_TIMEOUT * 1000L);
-                    p.setSitOutDeadline(expectedDeadline);
+                        final long kickDeadline = System.currentTimeMillis() + 5000L;
+                        p.setSitOutDeadline(kickDeadline);
 
-                    scheduler.schedule(() -> {
-                        synchronized (lock) {
-                            if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT
-                                    && p.getSitOutDeadline() == expectedDeadline) {
-                                try {
-                                    leaveTable(p);
-                                    if (eventListener != null) eventListener.onTableUpdate(this);
-                                } catch (Exception ignored) {}
+                        scheduler.schedule(() -> {
+                            synchronized (lock) {
+                                if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT
+                                        && p.getSitOutDeadline() == kickDeadline) {
+                                    try {
+                                        leaveTable(p);
+                                        if (eventListener != null) {
+                                            eventListener.onTableUpdate(this);
+                                        }
+                                    } catch (Exception ignored) {}
+                                }
                             }
-                        }
-                    }, REBUY_TIMEOUT, TimeUnit.SECONDS);
+                        }, 5, TimeUnit.SECONDS);
+                    }
+                } else if (p.getChips().get() < bigBlindBet) {
+                    if (p.getStatus() != PlayerStatus.SITTING_OUT) {
+                        p.setStatus(PlayerStatus.SITTING_OUT);
+
+                        final long rebuyDeadline = System.currentTimeMillis() + (REBUY_TIMEOUT * 1000L);
+                        p.setSitOutDeadline(rebuyDeadline);
+
+                        scheduler.schedule(() -> {
+                            synchronized (lock) {
+                                if (players.contains(p) && p.getStatus() == PlayerStatus.SITTING_OUT
+                                        && p.getSitOutDeadline() == rebuyDeadline) {
+                                    try {
+                                        leaveTable(p);
+                                        if (eventListener != null) eventListener.onTableUpdate(this);
+                                    } catch (Exception ignored) {}
+                                }
+                            }
+                        }, REBUY_TIMEOUT, TimeUnit.SECONDS);
+                    }
+                } else {
+                    p.setStatus(PlayerStatus.WAITING);
+                    p.setSitOutDeadline(0L);
                 }
-            } else {
-                p.setStatus(PlayerStatus.WAITING);
-                p.setSitOutDeadline(0L);
             }
-        }
 
-        for (Player p : toRemove) {
-            leaveTable(p);
+            this.deck = new Deck();
         }
-
-        this.deck = new Deck();
     }
 
     public void handleAction(Player player, PlayerAction action) {
