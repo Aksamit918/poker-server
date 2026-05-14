@@ -31,6 +31,8 @@ public class TableManager implements TableEventListener {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, ScheduledFuture<?>> disconnectTasks = new ConcurrentHashMap<>();
 
+    private static final int DISCONNECT_GRACE_PERIOD = 30;
+
     public TableManager(AccountService accountService,
                         GameTableRepository tableRepository,
                         GameEventPublisher eventPublisher) {
@@ -138,7 +140,7 @@ public class TableManager implements TableEventListener {
                     log.info("User {} was auto-kicked after 10s grace period.", userId);
                 }
                 disconnectTasks.remove(userId);
-            }, 10, TimeUnit.SECONDS);
+            }, DISCONNECT_GRACE_PERIOD, TimeUnit.SECONDS);
             disconnectTasks.put(userId, task);
         }
     }

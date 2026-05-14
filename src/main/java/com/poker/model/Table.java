@@ -20,6 +20,10 @@ public class Table {
     private static final int REBUY_TIMEOUT = 30;
     private static final int SHOWDOWN_BASE_DELAY = 2;
     private static final int SHOWDOWN_LAYER_DELAY = 5;
+    private static final int REBUY_GRACE_PERIOD = 5;
+    private static final int START_GAME_DELAY = 3;
+    private static final int PREMATURE_END_DELAY = 4;
+    private static final int KICK_OUT_OF_MONEY_DELAY = 5;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -126,6 +130,10 @@ public class Table {
                 bbPlayer.addToTotalInHand(bbPaid);
                 bbPlayer.addToRoundContribution(bbPaid);
 
+                if (bbPlayer.getChips().get() == 0) {
+                    bbPlayer.setStatus(PlayerStatus.ALL_IN);
+                }
+
                 this.currentMaxBet = bigBlindBet;
                 this.deck = new Deck();
                 dealCards();
@@ -149,21 +157,28 @@ public class Table {
                 synchronized (lock) {
                     cleanupTable();
 
-                    long readyPlayers = players.stream()
-                            .filter(p -> p.getStatus() == PlayerStatus.WAITING)
-                            .count();
-
-                    if (readyPlayers < MIN_PLAYERS) {
-                        this.isTransitioning = false;
-                        this.state = TableStates.WAITING_FOR_PLAYERS;
-                        if (eventListener != null) {
-                            eventListener.onTableUpdate(this);
-                        }
-                        System.out.println("DEBUG: Not enough players to start. Table is now waiting.");
-                        return;
+                    if (eventListener != null) {
+                        eventListener.onTableUpdate(this);
                     }
 
-                    startNewHand();
+                    scheduler.schedule(() -> {
+                        synchronized (lock) {
+                            long readyCount = players.stream()
+                                    .filter(p -> p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet)
+                                    .count();
+
+                            if (readyCount >= MIN_PLAYERS) {
+                                startNewHand();
+                            } else {
+                                this.isTransitioning = false;
+                                this.state = TableStates.WAITING_FOR_PLAYERS;
+                                if (eventListener != null) {
+                                    eventListener.onTableUpdate(this);
+                                }
+                                System.out.println("DEBUG: Hand skipped. Still waiting for players.");
+                            }
+                        }
+                    }, REBUY_GRACE_PERIOD, TimeUnit.SECONDS);
                 }
             } catch (Exception e) {
                 System.err.println("CRITICAL ERROR IN scheduleNextHand: " + e.getMessage());
@@ -295,6 +310,12 @@ public class Table {
     }
     public void rebuy(Player player, long amount, long walletBalance) {
         synchronized (lock) {
+            if (player.getStatus() != PlayerStatus.WAITING &&
+                    player.getStatus() != PlayerStatus.FOLDED &&
+                    player.getStatus() != PlayerStatus.SITTING_OUT) {
+                throw new IllegalTableStateException("error.rebuy.active.hand");
+            }
+
             long currentChips = player.getChips().get();
             long increasedChips = currentChips + amount;
 
@@ -378,10 +399,6 @@ public class Table {
                             scheduleNextHand(totalDelay);
 
                         } else {
-                            if (eventListener != null) {
-                                eventListener.onTableUpdate(this);
-                            }
-
                             long stillCanBet = players.stream()
                                     .filter(p -> p.getStatus() != PlayerStatus.FOLDED &&
                                             p.getStatus() != PlayerStatus.ALL_IN &&
@@ -389,6 +406,9 @@ public class Table {
                                     .count();
 
                             if (stillCanBet < 2) {
+                                if (eventListener != null) {
+                                    eventListener.onTableUpdate(this);
+                                }
                                 endBettingRound();
                             } else {
                                 this.currentMaxBet = 0;
@@ -401,7 +421,9 @@ public class Table {
                                 this.activePlayerIdx = dealerIdx;
                                 advanceTurn();
                                 startTimer();
-                                if (eventListener != null) eventListener.onTableUpdate(this);
+                                if (eventListener != null) {
+                                    eventListener.onTableUpdate(this);
+                                }
                             }
                         }
                     }
@@ -463,7 +485,7 @@ public class Table {
                 eventListener.onTableUpdate(this);
             }
 
-            scheduleNextHand(4);
+            scheduleNextHand(PREMATURE_END_DELAY);
         }
     }
 
@@ -640,7 +662,7 @@ public class Table {
                             this.isTransitioning = false;
                         }
                     }
-                }, 3, TimeUnit.SECONDS);
+                }, START_GAME_DELAY, TimeUnit.SECONDS);
             }
         }
     }
@@ -782,7 +804,7 @@ public class Table {
                                     } catch (Exception ignored) {}
                                 }
                             }
-                        }, 5, TimeUnit.SECONDS);
+                        }, KICK_OUT_OF_MONEY_DELAY, TimeUnit.SECONDS);
                     }
                 } else if (p.getChips().get() < bigBlindBet) {
                     if (p.getStatus() != PlayerStatus.SITTING_OUT) {
