@@ -47,13 +47,24 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                 if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                     List<String> authHeaders = accessor.getNativeHeader("Authorization");
-                    if (authHeaders != null && !authHeaders.isEmpty()) {
-                        String token = authHeaders.get(0).replace("Bearer ", "");
-                        String userId = accountService.getUserIdByToken(token);
 
-                        if (userId != null) {
-                            accessor.getSessionAttributes().put("userId", userId);
-                            accessor.setUser(() -> userId);
+                    if (authHeaders != null && !authHeaders.isEmpty()) {
+                        String rawHeader = authHeaders.get(0);
+                        String token = null;
+
+                        if (rawHeader.startsWith("Bearer ")) {
+                            token = rawHeader.substring(7);
+                        }
+
+                        if (token != null && !token.isBlank() && token.contains(".")) {
+                            String userId = accountService.getUserIdByToken(token);
+
+                            if (userId != null) {
+                                accessor.getSessionAttributes().put("userId", userId);
+                                accessor.setUser(() -> userId);
+                            }
+                        } else {
+                            //System.out.println("DEBUG WS: Received header is: " + rawHeader);
                         }
                     }
                 }
