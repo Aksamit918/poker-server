@@ -14,6 +14,7 @@ import com.poker.persistence.repository.AccountRepository;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.persistence.repository.RefreshTokenRepository;
 import com.poker.persistence.repository.TransactionRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class AccountService {
     private final AccountRepository accountRepository;
@@ -64,13 +66,14 @@ public class AccountService {
 
     private RefreshToken createRefreshToken(Account account) {
         refreshTokenRepository.deleteByAccount(account);
+        refreshTokenRepository.flush();
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setAccount(account);
         refreshToken.setToken(UUID.randomUUID().toString());
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenExpirationMs));
 
-        return refreshTokenRepository.save(refreshToken);
+        return refreshTokenRepository.saveAndFlush(refreshToken);
     }
 
     @Transactional
@@ -140,32 +143,25 @@ public class AccountService {
     @Transactional
     public LoginResponseDTO login(String login, String password) {
         Account account = accountRepository.findByLogin(login)
-                .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
+                .orElseThrow(() -> new AccountNotFoundException("error.account.not.found"));
 
         if (!passwordEncoder.matches(password, account.getPassword())) {
             throw new InvalidCredentialsException("error.password.incorrect");
         }
 
-        String accessToken = jwtService.generateToken(String.valueOf(account.getId()));
-        RefreshToken refreshToken = createRefreshToken(account);
-
         String userIdStr = account.getId().toString();
 
-        if (tableManager.isPlayerActive(userIdStr)) {
-            tableManager.forceKickPlayer(userIdStr);
-        } else {
-            Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
-            if (lastTx.isPresent()) {
-                TransactionType lastType = lastTx.get().getType();
-                if ((lastType == TransactionType.BUY_IN || lastType == TransactionType.REBUY)
-                        && lastTx.get().getCreatedAt().isBefore(serverStartTime)) {
-                    long refundAmount = Math.abs(lastTx.get().getAmount());
-                    account.setBalance(account.getBalance() + refundAmount);
-                    Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
-                    transactionRepository.save(refundLog);
-                }
+        try {
+            if (tableManager.isPlayerActive(userIdStr)) {
+                log.info("User {} is already active at a table. Force kicking to reset session...", userIdStr);
+                tableManager.forceKickPlayer(userIdStr);
             }
+        } catch (Exception e) {
+            log.error("Failed to kick zombie player {}: {}", userIdStr, e.getMessage());
         }
+
+        String accessToken = jwtService.generateToken(userIdStr);
+        RefreshToken refreshToken = createRefreshToken(account);
 
         boolean bonusReceived = processDailyBonus(account);
         accountRepository.save(account);

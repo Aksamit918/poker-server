@@ -3,19 +3,18 @@ package com.poker.controller;
 import com.poker.dto.*;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.IllegalTableStateException;
-import com.poker.exception.InvalidCredentialsException;
 import com.poker.model.Player;
 import com.poker.model.PlayerAction;
 import com.poker.model.Table;
 import com.poker.model.TransactionType;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
-import com.poker.service.GameEventPublisher;
 import com.poker.service.TableManager;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,78 +24,53 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/tables")
+@CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class TableController {
+
     private final TableManager tableManager;
     private final AccountService accountService;
-    private final GameEventPublisher eventPublisher;
 
-    @Autowired
-    public TableController(TableManager tableManager, AccountService accountService, GameEventPublisher eventPublisher) {
-        this.tableManager = tableManager;
-        this.accountService = accountService;
-        this.eventPublisher = eventPublisher;
-    }
-
-    private String extractToken(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new InvalidCredentialsException("Missing or invalid Authorization header");
-        }
-
-        return authHeader.substring(7);
+    private String getAuthenticatedUserId() {
+        return (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 
     @GetMapping
     public List<TableDTO> getLobby() {
         Collection<Table> tables = tableManager.getAllTables();
-
         return tables.stream()
                 .map(TableDTO::createTableDTO)
                 .toList();
     }
 
     @GetMapping("/{id}")
-    public TableDetailsDTO getTableDetails(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @PathVariable String id) {
-
+    public TableDetailsDTO getTableDetails(@PathVariable String id) {
         Table table = tableManager.getTable(id);
-
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        String requestingUserId = null;
-
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            requestingUserId = accountService.getUserIdByToken(token);
-        }
-
+        String requestingUserId = getAuthenticatedUserId();
         return TableDetailsDTO.createTableDetailsDTO(table, requestingUserId);
     }
 
     @PostMapping("/{id}/join")
-    public TableDetailsDTO joinTable(
-            @RequestHeader("Authorization") String authHeader,
-            @PathVariable String id,
-            @RequestBody JoinRequestDTO request) {
-
-        String token = extractToken(authHeader);
-        accountService.validateSession(Long.parseLong(request.userId()), token);
+    public TableDetailsDTO joinTable(@PathVariable String id, @RequestBody JoinRequestDTO request) {
+        String authUserId = getAuthenticatedUserId();
+        Long userId = Long.parseLong(authUserId);
 
         Table table = tableManager.getTable(id);
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "error.table.not.found");
         }
 
-        String activeTableId = tableManager.getTableIdByPlayer(request.userId());
+        String activeTableId = tableManager.getTableIdByPlayer(authUserId);
         if (activeTableId != null) {
             if (activeTableId.equals(id)) {
-                tableManager.cancelDisconnectTask(request.userId());
-                return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
+                tableManager.cancelDisconnectTask(authUserId);
+                return TableDetailsDTO.createTableDetailsDTO(table, authUserId);
             } else {
                 throw new IllegalTableStateException("error.player.already.playing");
             }
@@ -116,13 +90,11 @@ public class TableController {
             throw new ChipAmountException("error.chips.amount.invalid");
         }
 
-        Long userId = Long.parseLong(request.userId());
-
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
         Account account = accountService.findById(userId);
 
         Player newPlayer = new Player(
-                String.valueOf(account.getId()),
+                authUserId,
                 account.getNickname(),
                 table.getFreeSeat(),
                 new AtomicLong(account.getBalance()),
@@ -130,47 +102,37 @@ public class TableController {
         );
 
         table.joinTable(newPlayer);
-        tableManager.registerPlayer(request.userId(), id);
+        tableManager.registerPlayer(authUserId, id);
 
-        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
+        return TableDetailsDTO.createTableDetailsDTO(table, authUserId);
     }
 
-
     @PostMapping("/{id}/leave")
-    public ResponseEntity<Map<String, String>> leaveTable(@RequestHeader("Authorization") String authHeader,
-                                                          @PathVariable String id,
-                                                          @RequestBody LeaveRequestDTO request) {
-
-        String token = extractToken(authHeader);
-        Long userId = Long.parseLong(request.userId());
-        accountService.validateSession(userId, token);
+    public ResponseEntity<Map<String, String>> leaveTable(@PathVariable String id) {
+        String authUserId = getAuthenticatedUserId();
 
         Table table = tableManager.getTable(id);
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "error.table.not.found");
         }
 
-        Player player = table.findPlayerById(request.userId())
+        Player player = table.findPlayerById(authUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
         table.leaveTable(player);
-
         return ResponseEntity.ok(Map.of("status", "success", "message", "Player left the table"));
     }
 
     @PostMapping("/{id}/rebuy")
-    public RebuyResponseDTO rebuy(@RequestHeader("Authorization") String authHeader,
-                                  @PathVariable String id,
-                                  @RequestBody RebuyRequestDTO request) {
-        String token = extractToken(authHeader);
-        accountService.validateSession(Long.parseLong(request.userId()), token);
+    public RebuyResponseDTO rebuy(@PathVariable String id, @RequestBody RebuyRequestDTO request) {
+        String authUserId = getAuthenticatedUserId();
 
         Table table = tableManager.getTable(id);
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Player player = table.findPlayerById(request.userId())
+        Player player = table.findPlayerById(authUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found"));
 
         long amount = request.amount();
@@ -178,36 +140,30 @@ public class TableController {
         if (player.getChips().get() + amount > table.getMaxBuyIn()) {
             throw new ChipAmountException("Rebuy amount exceeds the maximum table limit: " + table.getMaxBuyIn());
         }
-
         if (player.getChips().get() + amount < table.getBigBlindBet()) {
             throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + table.getBigBlindBet());
         }
 
-        accountService.withdrawFromWallet(Long.parseLong(player.getUserId()), amount, id, TransactionType.REBUY);
+        accountService.withdrawFromWallet(Long.parseLong(authUserId), amount, id, TransactionType.REBUY);
 
-        Account account = accountService.findById(Long.parseLong(player.getUserId()));
+        Account account = accountService.findById(Long.parseLong(authUserId));
         long realWalletBalance = account.getBalance();
 
         table.rebuy(player, amount, realWalletBalance);
 
-        return new RebuyResponseDTO(
-                player.getChips().get()
-        );
+        return new RebuyResponseDTO(player.getChips().get());
     }
 
     @PostMapping("/{id}/action")
-    public TableDetailsDTO action(@RequestHeader("Authorization") String authHeader,
-                                  @PathVariable String id,
-                                  @RequestBody ActionRequestDTO request) {
-        String token = extractToken(authHeader);
-        accountService.validateSession(Long.parseLong(request.userId()), token);
+    public TableDetailsDTO action(@PathVariable String id, @RequestBody ActionRequestDTO request) {
+        String authUserId = getAuthenticatedUserId();
 
         Table table = tableManager.getTable(id);
         if (table == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
 
-        Optional<Player> playerOpt = table.findPlayerById(request.userId());
+        Optional<Player> playerOpt = table.findPlayerById(authUserId);
         if (playerOpt.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found");
         }
@@ -222,29 +178,23 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
 
-        return TableDetailsDTO.createTableDetailsDTO(table, request.userId());
+        return TableDetailsDTO.createTableDetailsDTO(table, authUserId);
     }
 
     @PostMapping
-    public TableDetailsDTO createTable(
-            @RequestHeader("Authorization") String authHeader,
-            @Valid @RequestBody CreateTableRequestDTO request) {
+    public TableDetailsDTO createTable(@Valid @RequestBody CreateTableRequestDTO request) {
+        String authUserId = getAuthenticatedUserId();
 
-        String token = extractToken(authHeader);
-        accountService.validateSession(Long.parseLong(request.userId()), token);
-
-        TableDetailsDTO dto = tableManager.createTable(
+        return tableManager.createTable(
                 request.name(),
                 request.smallBlind(),
                 request.bigBlind(),
                 request.minPlayersNum(),
                 request.maxPlayersNum(),
-                request.userId(),
+                authUserId, 
                 request.chips(),
                 request.passcode()
         );
-
-        return dto;
     }
 
     @DeleteMapping("/{id}")
