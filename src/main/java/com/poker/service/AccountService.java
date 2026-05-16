@@ -8,136 +8,109 @@ import com.poker.exception.InvalidInputException;
 import com.poker.model.TransactionType;
 import com.poker.persistence.entity.Account;
 import com.poker.persistence.entity.GameTable;
+import com.poker.persistence.entity.RefreshToken;
 import com.poker.persistence.entity.Transaction;
 import com.poker.persistence.repository.AccountRepository;
 import com.poker.persistence.repository.GameTableRepository;
+import com.poker.persistence.repository.RefreshTokenRepository;
 import com.poker.persistence.repository.TransactionRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AccountService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final GameTableRepository gameTableRepository;
+    private final RefreshTokenRepository refreshTokenRepository; // Добавили
     private final BCryptPasswordEncoder passwordEncoder;
-    private final Map<Long, String> activeSessions = new ConcurrentHashMap<>();
-    private final Map<String, Long> tokenToUserId = new ConcurrentHashMap<>();
+    private final JwtService jwtService; // Добавили
     private final TableManager tableManager;
-    private final java.time.OffsetDateTime serverStartTime = java.time.OffsetDateTime.now();
     private final GameEventPublisher eventPublisher;
 
+    private final long refreshTokenExpirationMs;
+    private final java.time.OffsetDateTime serverStartTime = java.time.OffsetDateTime.now();
     private final long DAILY_BONUS_AMOUNT = 5000L;
 
     public AccountService(AccountRepository accountRepository,
                           TransactionRepository transactionRepository,
                           GameTableRepository gameTableRepository,
+                          RefreshTokenRepository refreshTokenRepository,
                           BCryptPasswordEncoder passwordEncoder,
+                          JwtService jwtService,
+                          @Value("${poker.jwt.refresh-expiration}") Duration refreshTokenDuration,
                           @Lazy TableManager tableManager,
-                          @Lazy GameEventPublisher eventPublisher) {
+                          GameEventPublisher eventPublisher) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.gameTableRepository = gameTableRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.refreshTokenExpirationMs = refreshTokenDuration.toMillis();
         this.tableManager = tableManager;
         this.eventPublisher = eventPublisher;
     }
 
-    public void validateSession(Long userId, String token) {
-        String sessionToken = activeSessions.get(userId);
+    private RefreshToken createRefreshToken(Account account) {
+        refreshTokenRepository.deleteByAccount(account);
 
-        if (sessionToken == null || !sessionToken.equals(token)) {
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setAccount(account);
+        refreshToken.setToken(UUID.randomUUID().toString());
+        refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenExpirationMs));
+
+        return refreshTokenRepository.save(refreshToken);
+    }
+
+    @Transactional
+    public String refreshAccessToken(String requestRefreshToken) {
+        return refreshTokenRepository.findByToken(requestRefreshToken)
+                .map(token -> {
+                    if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
+                        refreshTokenRepository.delete(token);
+                        throw new InvalidCredentialsException("error.refresh.expired");
+                    }
+                    return token;
+                })
+                .map(RefreshToken::getAccount)
+                .map(account -> jwtService.generateToken(String.valueOf(account.getId())))
+                .orElseThrow(() -> new InvalidCredentialsException("error.refresh.invalid"));
+    }
+
+    public void validateSession(Long userId, String token) {
+        String tokenUserId = jwtService.extractUserId(token);
+
+        if (tokenUserId == null) {
+            throw new InvalidCredentialsException("error.session.expired");
+        }
+
+        if (!tokenUserId.equals(String.valueOf(userId))) {
             throw new InvalidCredentialsException("error.session.invalid");
         }
     }
 
-    private boolean processDailyBonus(Account account) {
-        OffsetDateTime now = OffsetDateTime.now();
-
-        boolean isFirstTime = (account.getLastBonusAt() == null);
-
-        boolean isTimePassed = !isFirstTime && java.time.Duration.between(account.getLastBonusAt(), now).toHours() >= 24;
-
-        if (isFirstTime || isTimePassed) {
-            account.setBalance(account.getBalance() + DAILY_BONUS_AMOUNT);
-            account.setLastBonusAt(now);
-
-            transactionRepository.save(new Transaction(
-                    account,
-                    null,
-                    DAILY_BONUS_AMOUNT,
-                    TransactionType.DAILY_BONUS)
-            );
-            return true;
+    public String getUserIdByToken(String token) {
+        if (token == null) {
+            return null;
         }
 
-        return false;
+        return jwtService.extractUserId(token);
     }
 
     @Transactional(readOnly = true)
     public List<Account> searchAccounts(String name) {
         return accountRepository.findByNicknameContaining(name);
-    }
-
-    public String getUserIdByToken(String token) {
-        if (token == null) return null;
-
-        Long userId = tokenToUserId.get(token);
-        return userId != null ? String.valueOf(userId) : null;
-    }
-
-    @Transactional
-    public LoginResponseDTO login(String login, String password) {
-        Account account = accountRepository.findByLogin(login)
-                .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
-
-        if (!passwordEncoder.matches(password, account.getPassword())) {
-            throw new InvalidCredentialsException("error.password.incorrect");
-        }
-
-        String token = UUID.randomUUID().toString();
-        activeSessions.put(account.getId(), token);
-        tokenToUserId.put(token, account.getId());
-
-        String userIdStr = account.getId().toString();
-
-        if (tableManager.isPlayerActive(userIdStr)) {
-            tableManager.forceKickPlayer(userIdStr);
-        } else {
-            Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
-            if (lastTx.isPresent()) {
-                TransactionType lastType = lastTx.get().getType();
-
-                if ((lastType == TransactionType.BUY_IN || lastType == TransactionType.REBUY)
-                && lastTx.get().getCreatedAt().isBefore(serverStartTime)) {
-                    long refundAmount = Math.abs(lastTx.get().getAmount());
-                    account.setBalance(account.getBalance() + refundAmount);
-                    Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
-                    transactionRepository.save(refundLog);
-                }
-            }
-        }
-
-        boolean bonusReceived = processDailyBonus(account);
-        accountRepository.save(account);
-
-        return LoginResponseDTO.fromAccount(account, token, bonusReceived);
-    }
-
-    public void logout(Long userId) {
-        String token = activeSessions.remove(userId);
-        if (token != null) {
-            tokenToUserId.remove(token);
-        }
     }
 
     @Transactional
@@ -155,16 +128,56 @@ public class AccountService {
         }
 
         String encodedPassword = passwordEncoder.encode(password);
-
         Account account = new Account(login, encodedPassword, nickname);
         account = accountRepository.save(account);
 
-        String token = UUID.randomUUID().toString();
+        String accessToken = jwtService.generateToken(String.valueOf(account.getId()));
+        RefreshToken refreshToken = createRefreshToken(account);
 
-        activeSessions.put(account.getId(), token);
-        tokenToUserId.put(token, account.getId());
+        return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), false);
+    }
 
-        return LoginResponseDTO.fromAccount(account, token, false);
+    @Transactional
+    public LoginResponseDTO login(String login, String password) {
+        Account account = accountRepository.findByLogin(login)
+                .orElseThrow(() -> new AccountNotFoundException("Account with this login not found"));
+
+        if (!passwordEncoder.matches(password, account.getPassword())) {
+            throw new InvalidCredentialsException("error.password.incorrect");
+        }
+
+        String accessToken = jwtService.generateToken(String.valueOf(account.getId()));
+        RefreshToken refreshToken = createRefreshToken(account);
+
+        String userIdStr = account.getId().toString();
+
+        if (tableManager.isPlayerActive(userIdStr)) {
+            tableManager.forceKickPlayer(userIdStr);
+        } else {
+            Optional<Transaction> lastTx = transactionRepository.findFirstByAccountOrderByCreatedAtDesc(account);
+            if (lastTx.isPresent()) {
+                TransactionType lastType = lastTx.get().getType();
+                if ((lastType == TransactionType.BUY_IN || lastType == TransactionType.REBUY)
+                        && lastTx.get().getCreatedAt().isBefore(serverStartTime)) {
+                    long refundAmount = Math.abs(lastTx.get().getAmount());
+                    account.setBalance(account.getBalance() + refundAmount);
+                    Transaction refundLog = new Transaction(account, null, refundAmount, TransactionType.SYSTEM_REFUND);
+                    transactionRepository.save(refundLog);
+                }
+            }
+        }
+
+        boolean bonusReceived = processDailyBonus(account);
+        accountRepository.save(account);
+
+        return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), bonusReceived);
+    }
+
+    public void logout(Long userId) {
+        Account account = accountRepository.findById(userId).orElse(null);
+        if (account != null) {
+            refreshTokenRepository.deleteByAccount(account);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -269,5 +282,28 @@ public class AccountService {
         transactionRepository.save(tx);
 
         eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
+    }
+
+    private boolean processDailyBonus(Account account) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        boolean isFirstTime = (account.getLastBonusAt() == null);
+
+        boolean isTimePassed = !isFirstTime && java.time.Duration.between(account.getLastBonusAt(), now).toHours() >= 24;
+
+        if (isFirstTime || isTimePassed) {
+            account.setBalance(account.getBalance() + DAILY_BONUS_AMOUNT);
+            account.setLastBonusAt(now);
+
+            transactionRepository.save(new Transaction(
+                    account,
+                    null,
+                    DAILY_BONUS_AMOUNT,
+                    TransactionType.DAILY_BONUS)
+            );
+            return true;
+        }
+
+        return false;
     }
 }

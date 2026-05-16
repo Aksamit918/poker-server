@@ -1,149 +1,114 @@
 package com.poker.controller;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.dto.LoginResponseDTO;
 import com.poker.exception.InvalidCredentialsException;
 import com.poker.model.Player;
+import com.poker.model.Table;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
+import com.poker.service.JwtService;
+import com.poker.service.TableManager;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.poker.model.Table;
 
 import java.util.Map;
 import java.util.Optional;
-import com.poker.service.TableManager;
 
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class AuthController {
     private final AccountService accountService;
     private final TableManager tableManager;
+    private final JwtService jwtService;
 
     public record RegisterRequest(String login, String password, String nickname) {}
     public record LoginRequest(String login, String password) {}
     public record ChangeNicknameRequest(String newNickname) {}
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
-    public record LogoutRequest(
-            @JsonProperty("user_id") String userId
-    ) {}
-
-    public AuthController(AccountService accountService, TableManager tableManager) {
-        this.accountService = accountService;
-        this.tableManager = tableManager;
-    }
+    public record RefreshRequestDTO(String refreshToken) {}
+    public record RefreshResponseDTO(String accessToken) {}
 
     private String extractToken(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new InvalidCredentialsException("Missing or invalid Authorization header");
+            throw new InvalidCredentialsException("error.token.missing");
         }
-
         return authHeader.substring(7);
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        try {
-            LoginResponseDTO response = accountService.register(
-                    request.login(),
-                    request.password(),
-                    request.nickname()
-            );
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public LoginResponseDTO register(@RequestBody RegisterRequest request) {
+        return accountService.register(request.login(), request.password(), request.nickname());
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        try {
-            LoginResponseDTO response = accountService.login(request.login(), request.password());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(401).body(e.getMessage()); // 401 Unauthorized
-        }
+    public LoginResponseDTO login(@RequestBody LoginRequest request) {
+        return accountService.login(request.login(), request.password());
+    }
+
+    @PostMapping("/refresh")
+    public RefreshResponseDTO refreshToken(@RequestBody RefreshRequestDTO request) {
+        String newAccessToken = accountService.refreshAccessToken(request.refreshToken());
+        return new RefreshResponseDTO(newAccessToken);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader,
-                                    @RequestBody LogoutRequest request) {
-        try {
-            String token = extractToken(authHeader);
-            Long uId = Long.parseLong(request.userId());
+    public ResponseEntity<String> logout(@RequestHeader("Authorization") String authHeader) {
+        String token = extractToken(authHeader);
+        String userIdStr = jwtService.extractUserId(token);
 
-            accountService.validateSession(uId, token);
+        if (userIdStr == null) throw new InvalidCredentialsException("error.session.expired");
 
-            String tableId = tableManager.getTableIdByPlayer(request.userId());
-            if (tableId != null) {
-                Table table = tableManager.getTable(tableId);
-                Optional<Player> player = table.findPlayerById(request.userId());
-                player.ifPresent(table::leaveTable);
+        Long uId = Long.parseLong(userIdStr);
+
+        String tableId = tableManager.getTableIdByPlayer(userIdStr);
+        if (tableId != null) {
+            Table table = tableManager.getTable(tableId);
+            if (table != null) {
+                table.findPlayerById(userIdStr).ifPresent(table::leaveTable);
             }
-
-            accountService.logout(uId);
-            return ResponseEntity.ok("Logged out successfully");
-        } catch (Exception e) {
-            return ResponseEntity.status(401).body(e.getMessage());
         }
+
+        accountService.logout(uId);
+        return ResponseEntity.ok("Logged out successfully");
     }
 
     @PatchMapping("/{id}/nickname")
-    public ResponseEntity<?> changeNickname(@RequestHeader("Authorization") String authHeader,
-                                            @PathVariable Long id,
-                                            @RequestBody ChangeNicknameRequest request) {
-        try {
-            String token = extractToken(authHeader);
-            accountService.validateSession(id, token);
-
-            Account updated = accountService.changeNickname(id, request.newNickname());
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public Account changeNickname(@RequestHeader("Authorization") String authHeader,
+                                  @PathVariable Long id,
+                                  @RequestBody ChangeNicknameRequest request) {
+        String token = extractToken(authHeader);
+        accountService.validateSession(id, token);
+        return accountService.changeNickname(id, request.newNickname());
     }
 
     @PatchMapping("/{id}/password")
-    public ResponseEntity<?> changePassword(@RequestHeader("Authorization") String authHeader,
-                                            @PathVariable Long id,
-                                            @RequestBody ChangePasswordRequest request) {
-        try {
-            String token = extractToken(authHeader);
-            accountService.validateSession(id, token);
-
-            accountService.changePassword(id, request.oldPassword(), request.newPassword());
-            return ResponseEntity.ok("Password updated successfully");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<String> changePassword(@RequestHeader("Authorization") String authHeader,
+                                                 @PathVariable Long id,
+                                                 @RequestBody ChangePasswordRequest request) {
+        String token = extractToken(authHeader);
+        accountService.validateSession(id, token);
+        accountService.changePassword(id, request.oldPassword(), request.newPassword());
+        return ResponseEntity.ok("Password updated successfully");
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAccount(@RequestHeader("Authorization") String authHeader,
-                                           @PathVariable Long id) {
-        try {
-            String token = extractToken(authHeader);
-            accountService.validateSession(id, token);
-
-            accountService.deleteAccount(id);
-            return ResponseEntity.ok("Account deleted successfully");
-        } catch (Exception e) {
-            return ResponseEntity.status(403).body(e.getMessage());
-        }
+    public ResponseEntity<String> deleteAccount(@RequestHeader("Authorization") String authHeader,
+                                                @PathVariable Long id) {
+        String token = extractToken(authHeader);
+        accountService.validateSession(id, token);
+        accountService.deleteAccount(id);
+        return ResponseEntity.ok("Account deleted successfully");
     }
 
     @GetMapping("/{id}/balance")
-    public ResponseEntity<?> getBalance(@RequestHeader("Authorization") String authHeader,
+    public Map<String, Long> getBalance(@RequestHeader("Authorization") String authHeader,
                                         @PathVariable Long id) {
-        try {
-            String token = extractToken(authHeader);
-            accountService.validateSession(id, token);
-
-            Account account = accountService.findById(id);
-            return ResponseEntity.ok(Map.of("wallet_balance", account.getBalance()));
-        } catch (Exception e) {
-            return ResponseEntity.status(401).body(e.getMessage());
-        }
+        String token = extractToken(authHeader);
+        accountService.validateSession(id, token);
+        Account account = accountService.findById(id);
+        return Map.of("wallet_balance", account.getBalance());
     }
 }
