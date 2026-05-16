@@ -20,7 +20,7 @@ public class Table {
     private static final int REBUY_TIMEOUT = 30;
     private static final int SHOWDOWN_BASE_DELAY = 2;
     private static final int SHOWDOWN_LAYER_DELAY = 5;
-    private static final int REBUY_GRACE_PERIOD = 5;
+    private static final long REBUY_GRACE_PERIOD_MS = 3500;
     private static final int START_GAME_DELAY = 3;
     private static final int PREMATURE_END_DELAY = 4;
     private static final int KICK_OUT_OF_MONEY_DELAY = 5;
@@ -178,7 +178,7 @@ public class Table {
                                 System.out.println("DEBUG: Hand skipped. Still waiting for players.");
                             }
                         }
-                    }, REBUY_GRACE_PERIOD, TimeUnit.SECONDS);
+                    },REBUY_GRACE_PERIOD_MS, TimeUnit.MILLISECONDS);
                 }
             } catch (Exception e) {
                 System.err.println("CRITICAL ERROR IN scheduleNextHand: " + e.getMessage());
@@ -192,7 +192,7 @@ public class Table {
     }
     private void dealCards() {
         for (Player player : players) {
-            if (player.getStatus() == PlayerStatus.ACTIVE) {
+            if (player.getStatus() == PlayerStatus.ACTIVE || player.getStatus() == PlayerStatus.ALL_IN) {
                 player.addCard(deck.drawCard());
                 player.addCard(deck.drawCard());
             }
@@ -279,7 +279,8 @@ public class Table {
             if (p != player &&
                     p.getStatus() != PlayerStatus.FOLDED &&
                     p.getStatus() != PlayerStatus.ALL_IN &&
-                    p.getStatus() != PlayerStatus.WAITING) {
+                    p.getStatus() != PlayerStatus.WAITING &&
+                    p.getStatus() != PlayerStatus.SITTING_OUT) {
                 p.setStatus(PlayerStatus.ACTIVE);
             }
         }
@@ -301,8 +302,11 @@ public class Table {
         if (player.getRoundContribution() > currentMaxBet) {
             this.currentMaxBet = player.getRoundContribution();
             for (Player p : players) {
-                if (p != player && p.getStatus() != PlayerStatus.FOLDED &&
-                        p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                if (p != player &&
+                        p.getStatus() != PlayerStatus.FOLDED &&
+                        p.getStatus() != PlayerStatus.ALL_IN &&
+                        p.getStatus() != PlayerStatus.WAITING &&
+                        p.getStatus() != PlayerStatus.SITTING_OUT) {
                     p.setStatus(PlayerStatus.ACTIVE);
                 }
             }
@@ -351,7 +355,9 @@ public class Table {
 
     private void endBettingRound() {
         synchronized (lock) {
-            if (isTransitioning) return;
+            if (isTransitioning) {
+                return;
+            }
             this.isTransitioning = true;
             stopTimer();
 
@@ -414,7 +420,10 @@ public class Table {
                                 this.currentMaxBet = 0;
                                 for (Player p : players) {
                                     p.setRoundContribution(0);
-                                    if (p.getStatus() != PlayerStatus.FOLDED && p.getStatus() != PlayerStatus.ALL_IN && p.getStatus() != PlayerStatus.WAITING) {
+                                    if (p.getStatus() != PlayerStatus.FOLDED &&
+                                            p.getStatus() != PlayerStatus.ALL_IN &&
+                                            p.getStatus() != PlayerStatus.WAITING &&
+                                            p.getStatus() != PlayerStatus.SITTING_OUT) {
                                         p.setStatus(PlayerStatus.ACTIVE);
                                     }
                                 }
@@ -686,7 +695,6 @@ public class Table {
 
             if (eventListener != null) {
                 eventListener.onPlayerLeave(player.getUserId(), player.getChips().get());
-                // eventListener.onTableUpdate(this);
             }
 
             if (players.isEmpty()) {
@@ -714,6 +722,13 @@ public class Table {
                     endBettingRound();
                 } else {
                     startTimer();
+                    if (eventListener != null) {
+                        eventListener.onTableUpdate(this);
+                    }
+                }
+            } else {
+                if (eventListener != null && state != TableStates.WAITING_FOR_PLAYERS) {
+                    eventListener.onTableUpdate(this);
                 }
             }
         }
