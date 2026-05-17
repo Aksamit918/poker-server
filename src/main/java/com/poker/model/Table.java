@@ -92,21 +92,15 @@ public class Table {
                 for (Player p : players) {
                     if (p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet) {
                         p.setStatus(PlayerStatus.ACTIVE);
+                        p.setRoundContribution(0);
+                        p.setTotalInHand(0);
                     }
                 }
 
                 long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
-
                 if (activeCount < 2) {
-                    for (Player p : players) {
-                        if (p.getStatus() == PlayerStatus.ACTIVE) {
-                            p.setStatus(PlayerStatus.WAITING);
-                        }
-                    }
                     this.state = TableStates.WAITING_FOR_PLAYERS;
-                    if (eventListener != null) {
-                        eventListener.onTableUpdate(this);
-                    }
+                    if (eventListener != null) eventListener.onTableUpdate(this);
                     return;
                 }
 
@@ -115,7 +109,7 @@ public class Table {
                 Player sbPlayer = getPlayerBySeat(smallBlindIdx);
                 Player bbPlayer = getPlayerBySeat(bigBlindIdx);
 
-                if (sbPlayer == null || bbPlayer == null || sbPlayer.getStatus() != PlayerStatus.ACTIVE || bbPlayer.getStatus() != PlayerStatus.ACTIVE) {
+                if (sbPlayer == null || bbPlayer == null) {
                     setupPositions();
                     sbPlayer = getPlayerBySeat(smallBlindIdx);
                     bbPlayer = getPlayerBySeat(bigBlindIdx);
@@ -125,23 +119,34 @@ public class Table {
                 long bbPaid = bbPlayer.bet(bigBlindBet);
 
                 pot.set(sbPaid + bbPaid);
-                sbPlayer.addToTotalInHand(sbPaid);
-                sbPlayer.addToRoundContribution(sbPaid);
-                bbPlayer.addToTotalInHand(bbPaid);
-                bbPlayer.addToRoundContribution(bbPaid);
 
-                if (bbPlayer.getChips().get() == 0) {
-                    bbPlayer.setStatus(PlayerStatus.ALL_IN);
-                }
+                sbPlayer.setRoundContribution(sbPaid);
+                sbPlayer.setTotalInHand(sbPaid);
+                bbPlayer.setRoundContribution(bbPaid);
+                bbPlayer.setTotalInHand(bbPaid);
+
+                if (sbPlayer.getChips().get() == 0) sbPlayer.setStatus(PlayerStatus.ALL_IN);
+                if (bbPlayer.getChips().get() == 0) bbPlayer.setStatus(PlayerStatus.ALL_IN);
 
                 this.currentMaxBet = bigBlindBet;
+                for (Player p : players) {
+                    if (p != sbPlayer && p != bbPlayer) {
+                        p.setRoundContribution(0);
+                        p.setTotalInHand(0);
+                    }
+                }
+
                 this.deck = new Deck();
                 dealCards();
 
                 this.state = TableStates.PRE_FLOP;
 
-                if (eventListener != null) eventListener.onTableUpdate(this);
+                if (eventListener != null) {
+                    eventListener.onTableUpdate(this);
+                }
                 startTimer();
+
+                System.out.println("DEBUG: Hand started. Pot: " + pot.get() + ", MaxBet: " + currentMaxBet);
             }
         } catch (Exception e) {
             System.err.println("CRITICAL ERROR IN startNewHand: " + e.getMessage());
