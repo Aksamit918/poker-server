@@ -270,9 +270,21 @@ public class Table {
         updateStatusAfterBet(player);
     }
     private void processRaise(Player player, long newMaxBet) {
-        if (newMaxBet <= currentMaxBet) throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
+        if (newMaxBet <= currentMaxBet) {
+            throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
+        }
 
         long amountToRaise = newMaxBet - player.getRoundContribution();
+
+        if (amountToRaise <= 0) {
+            throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
+        }
+
+        if (amountToRaise >= player.getChips().get()) {
+            processAllIn(player);
+            return;
+        }
+
         long actualPaid = player.bet(amountToRaise);
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
@@ -753,9 +765,13 @@ public class Table {
             return;
         }
 
+        final int expectedSeatIdx = this.activePlayerIdx;
+
         currentTimer = scheduler.schedule(() -> {
             synchronized (lock) {
                 if (state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) return;
+
+                if (this.activePlayerIdx != expectedSeatIdx) return;
 
                 Player timedOutPlayer = getPlayerBySeat(activePlayerIdx);
                 if (timedOutPlayer != null) {
@@ -860,8 +876,6 @@ public class Table {
             if (isTransitioning) throw new IllegalTableStateException("error.table.transitioning");
             if (!isPlayerTurn(player)) throw new NotYourTurnException("error.not.your.turn");
 
-            stopTimer();
-
             switch (action.type()) {
                 case FOLD -> processFold(player);
                 case CALL -> processCall(player);
@@ -869,6 +883,8 @@ public class Table {
                 case CHECK -> processCheck(player);
                 case ALL_IN -> processAllIn(player);
             }
+
+            stopTimer();
             player.resetMissedTurns();
 
             if (eventListener != null) {

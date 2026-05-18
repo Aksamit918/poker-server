@@ -155,30 +155,25 @@ public class TableController {
     }
 
     @PostMapping("/{id}/action")
-    public TableDetailsDTO action(@PathVariable String id, @RequestBody ActionRequestDTO request) {
+    public ResponseEntity<?> action(@PathVariable String id, @RequestBody ActionRequestDTO request) {
         String authUserId = getAuthenticatedUserId();
+        System.out.println("\n[DEBUG] === ЗАПРОС НА ДЕЙСТВИЕ ===");
+        System.out.println("[DEBUG] User: " + authUserId + ", Action: " + request.type() + ", Amount: " + request.amount());
 
         Table table = tableManager.getTable(id);
-        if (table == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
-        }
+        if (table == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Table not found"));
 
         Optional<Player> playerOpt = table.findPlayerById(authUserId);
-        if (playerOpt.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found");
-        }
+        if (playerOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Player not found"));
 
         Player player = playerOpt.get();
         PlayerAction action = new PlayerAction(request.type(), request.amount());
 
-        try {
-            table.handleAction(player, action);
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) throw (RuntimeException) e;
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        }
+        System.out.println("[DEBUG] Пытаемся выполнить handleAction...");
+        table.handleAction(player, action);
 
-        return TableDetailsDTO.createTableDetailsDTO(table, authUserId);
+        System.out.println("[DEBUG] Действие успешно выполнено (этого лога не должно быть при ошибке)");
+        return ResponseEntity.ok(TableDetailsDTO.createTableDetailsDTO(table, authUserId));
     }
 
     @PostMapping

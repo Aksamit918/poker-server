@@ -14,7 +14,7 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(name = "account_id", referencedColumnName = "id")
     private Account account;
 

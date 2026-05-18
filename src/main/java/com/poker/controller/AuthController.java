@@ -1,11 +1,12 @@
 package com.poker.controller;
 
-import com.poker.dto.LoginResponseDTO;
+import com.poker.dto.*;
 import com.poker.model.Table;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
 import com.poker.service.TableManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
@@ -23,20 +25,21 @@ public class AuthController {
     private final AccountService accountService;
     private final TableManager tableManager;
 
-    public record RegisterRequest(String login, String password, String nickname) {}
-    public record LoginRequest(String login, String password) {}
-    public record ChangeNicknameRequest(String newNickname) {}
-    public record ChangePasswordRequest(String oldPassword, String newPassword) {}
-    public record RefreshRequestDTO(String refreshToken) {}
-    public record RefreshResponseDTO(String accessToken) {}
-
     private String getAuthenticatedUserId() {
-        return (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return null;
+        }
+        return String.valueOf(auth.getPrincipal()).trim();
     }
 
     private void verifyUserIdMatch(Long requestedId) {
-        if (!getAuthenticatedUserId().equals(String.valueOf(requestedId))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied: Token does not match requested user ID");
+        String authId = getAuthenticatedUserId();
+        String reqIdStr = String.valueOf(requestedId).trim();
+
+        if (authId == null || !authId.equals(reqIdStr)) {
+            log.error("[AUTH ERROR] Match failed! Authenticated: '{}', Requested: '{}'", authId, reqIdStr);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "error.session.invalid");
         }
     }
 

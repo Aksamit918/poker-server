@@ -65,12 +65,12 @@ public class AccountService {
     }
 
     private RefreshToken createRefreshToken(Account account) {
-        refreshTokenRepository.deleteByAccount(account);
-        refreshTokenRepository.flush();
+        RefreshToken refreshToken = refreshTokenRepository.findByAccount(account)
+                .orElse(new RefreshToken());
 
-        RefreshToken refreshToken = new RefreshToken();
         refreshToken.setAccount(account);
         refreshToken.setToken(UUID.randomUUID().toString());
+
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenExpirationMs));
 
         return refreshTokenRepository.saveAndFlush(refreshToken);
@@ -78,17 +78,26 @@ public class AccountService {
 
     @Transactional
     public String refreshAccessToken(String requestRefreshToken) {
+        log.info("[REFRESH] Запрос с токеном: {}", requestRefreshToken);
+
         return refreshTokenRepository.findByToken(requestRefreshToken)
                 .map(token -> {
-                    if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
+                    if (token.getExpiryDate().isBefore(Instant.now())) {
+                        log.error("[REFRESH] Токен найден, но он просрочен! Истек: {}", token.getExpiryDate());
                         refreshTokenRepository.delete(token);
                         throw new InvalidCredentialsException("error.refresh.expired");
                     }
                     return token;
                 })
                 .map(RefreshToken::getAccount)
-                .map(account -> jwtService.generateToken(String.valueOf(account.getId())))
-                .orElseThrow(() -> new InvalidCredentialsException("error.refresh.invalid"));
+                .map(account -> {
+                    log.info("[REFRESH] Успех! Выдаем новый Access для юзера: {}", account.getLogin());
+                    return jwtService.generateToken(String.valueOf(account.getId()));
+                })
+                .orElseThrow(() -> {
+                    log.error("[REFRESH] Токен {} вообще не найден в базе данных!", requestRefreshToken);
+                    return new InvalidCredentialsException("error.refresh.invalid");
+                });
     }
 
     public void validateSession(Long userId, String token) {

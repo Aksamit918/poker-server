@@ -5,8 +5,8 @@ import com.poker.persistence.entity.Account;
 
 public record LoginResponseDTO(
         @JsonProperty("user_id") String userId,
-        String login,
-        String nickname,
+        @JsonProperty("login") String login,
+        @JsonProperty("nickname") String nickname,
         @JsonProperty("wallet_balance") long walletBalance,
         @JsonProperty("access_token")  String accessToken,
         @JsonProperty("refresh_token") String refreshToken,

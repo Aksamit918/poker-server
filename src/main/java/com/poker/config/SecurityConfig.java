@@ -1,5 +1,6 @@
 package com.poker.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,10 +39,21 @@ public class SecurityConfig {
                     opt.setAllowCredentials(true);
                     return opt;
                 }))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"error\": \"unauthorized\"}");
+                        })
+                )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/refresh").permitAll()
-                        .requestMatchers("/ws-poker/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/login", "/api/auth/login/",
+                                "/api/auth/register", "/api/auth/register/",
+                                "/api/auth/refresh", "/api/auth/refresh/",
+                                "/ws-poker/**", "/error"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

@@ -1,6 +1,8 @@
 package com.poker.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
+import org.springframework.context.NoSuchMessageException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -13,6 +15,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+@Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -22,125 +25,88 @@ public class GlobalExceptionHandler {
         this.messageSource = messageSource;
     }
 
-    private HttpHeaders getUtf8Headers() {
+    private ResponseEntity<Map<String, String>> createErrorResponse(String message, HttpStatus status) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.valueOf("application/json;charset=UTF-8"));
-        return headers;
-    }
 
-    @ExceptionHandler(TableFullException.class)
-    public ResponseEntity<Map<String, String>> handleTableFull(TableFullException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), null, locale);
         Map<String, String> response = new HashMap<>();
-        response.put("message", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.BAD_REQUEST);
+        response.put("error", message);
+
+        return new ResponseEntity<>(response, headers, status);
     }
 
-    @ExceptionHandler(PlayerAlreadyJoinedException.class)
-    public ResponseEntity<Map<String, String>> handleAlreadyJoined(PlayerAlreadyJoinedException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
+    private String getLocalizedMessage(String errorCode, Object[] args, Locale locale) {
+        try {
+            return messageSource.getMessage(errorCode, args, locale);
+        } catch (NoSuchMessageException e) {
+            log.warn("Message key not found: {}", errorCode);
+            return errorCode;
+        }
+    }
+
+    @ExceptionHandler({
+            IllegalRaiseException.class,
+            IllegalCheckException.class,
+            IllegalCallException.class,
+            ChipAmountException.class,
+            InvalidInputException.class
+    })
+    public ResponseEntity<Map<String, String>> handleBusinessLogicErrors(RuntimeException ex, Locale locale) {
+        System.out.println("[DEBUG] GlobalExceptionHandler поймал бизнес-ошибку: " + ex.getClass().getSimpleName());
+        System.out.println("[DEBUG] Сообщение ошибки: " + ex.getMessage());
+
         Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.CONFLICT);
+        response.put("error", ex.getMessage());
+
+        System.out.println("[DEBUG] Отправляем клиенту 400 Bad Request");
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(PlayerNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handlePlayerNotFound(PlayerNotFoundException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), null, locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.NOT_FOUND);
+
+    @ExceptionHandler({
+            NotYourTurnException.class,
+            IllegalTableStateException.class,
+            PlayerAlreadyJoinedException.class,
+            TableFullException.class,
+            GameInProgressException.class,
+            DuplicateResourceException.class
+    })
+    public ResponseEntity<Map<String, String>> handleConflictErrors(RuntimeException ex, Locale locale) {
+        String message = getLocalizedMessage(ex.getMessage(), null, locale);
+        return createErrorResponse(message, HttpStatus.CONFLICT); // 409
     }
 
-    @ExceptionHandler(GameInProgressException.class)
-    public ResponseEntity<String> handleGameInProgress(GameInProgressException ex) {
-        // Даже для строк возвращаем заголовки с UTF-8
-        return new ResponseEntity<>(ex.getMessage(), getUtf8Headers(), HttpStatus.FORBIDDEN);
-    }
-
-    @ExceptionHandler(EmptyDeckException.class)
-    public ResponseEntity<String> handleEmptyDeck(EmptyDeckException ex) {
-        return new ResponseEntity<>(ex.getMessage(), getUtf8Headers(), HttpStatus.FORBIDDEN);
-    }
-
-    @ExceptionHandler(IllegalCheckException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalCheck(IllegalCheckException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(IllegalRaiseException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalRaise(IllegalRaiseException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(IllegalCallException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalCall(IllegalCallException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), null, locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(ChipAmountException.class)
-    public ResponseEntity<Map<String, String>> handleChipAmount(ChipAmountException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(NotYourTurnException.class)
-    public ResponseEntity<Map<String, String>> handleNotYourTurn(NotYourTurnException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), null, locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.FORBIDDEN);
-    }
-
-    @ExceptionHandler(IllegalTableStateException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalTableState(IllegalTableStateException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), null, locale);
-        Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.FORBIDDEN);
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<String> handleValidationErrors(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getAllErrors().get(0).getDefaultMessage();
-        return new ResponseEntity<>(message, getUtf8Headers(), HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(AccountNotFoundException.class)
-    public ResponseEntity<String> handleAccountNotFound(AccountNotFoundException ex) {
-        return new ResponseEntity<>(ex.getMessage(), getUtf8Headers(), HttpStatus.NOT_FOUND);
+    @ExceptionHandler({PlayerNotFoundException.class, AccountNotFoundException.class})
+    public ResponseEntity<Map<String, String>> handleNotFoundErrors(RuntimeException ex, Locale locale) {
+        String message = getLocalizedMessage(ex.getMessage(), null, locale);
+        return createErrorResponse(message, HttpStatus.NOT_FOUND); // 404
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<String> handleInvalidCredentials(InvalidCredentialsException ex) {
-        return new ResponseEntity<>(ex.getMessage(), getUtf8Headers(), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<Map<String, String>> handleAuthErrors(InvalidCredentialsException ex, Locale locale) {
+        String message = getLocalizedMessage(ex.getMessage(), null, locale);
+        return createErrorResponse(message, HttpStatus.UNAUTHORIZED);
     }
 
-    @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<Map<String, String>> handleDuplicate(DuplicateResourceException ex, Locale locale) {
-        String errorMessage = messageSource.getMessage(ex.getMessage(), null, locale);
+    @ExceptionHandler({EmptyDeckException.class})
+    public ResponseEntity<Map<String, String>> handleForbiddenErrors(RuntimeException ex, Locale locale) {
+        String message = getLocalizedMessage(ex.getMessage(), null, locale);
+        return createErrorResponse(message, HttpStatus.FORBIDDEN); // 403
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationErrors(MethodArgumentNotValidException ex) {
+        String firstError = ex.getBindingResult().getAllErrors().get(0).getDefaultMessage();
+        return createErrorResponse(firstError, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleAllOtherExceptions(Exception ex) {
+        System.out.println("[DEBUG] !!! КРИТИЧЕСКАЯ НЕУЧТЕННАЯ ОШИБКА !!!");
+        ex.printStackTrace();
+
         Map<String, String> response = new HashMap<>();
-        response.put("error", errorMessage);
-        return new ResponseEntity<>(response, getUtf8Headers(), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(InvalidInputException.class)
-    public ResponseEntity<Map<String, String>> handleInvalidInput(InvalidInputException ex, Locale locale) {
-        String msg = messageSource.getMessage(ex.getMessage(), ex.getArgs(), locale);
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .headers(getUtf8Headers())
-                .body(Map.of("error", msg));
+        response.put("error", "Внутренняя ошибка сервера: " + ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
