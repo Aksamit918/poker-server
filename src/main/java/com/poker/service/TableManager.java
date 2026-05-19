@@ -246,21 +246,29 @@ public class TableManager implements TableEventListener {
         for (Table table : tables.values()) {
             for (Player player : table.getPlayers()) {
                 try {
-                    long refundAmount = player.getChips().get() + player.getRoundContribution();
+                    long currentStack = player.getChips().get();
 
-                    if (refundAmount > 0) {
+                    long moneyInPot = player.getTotalInHand();
+
+                    long totalRefund = currentStack + moneyInPot;
+
+                    if (totalRefund > 0) {
                         accountService.depositToWallet(
                                 Long.parseLong(player.getUserId()),
-                                refundAmount,
+                                totalRefund,
                                 table.getId(),
                                 TransactionType.SYSTEM_REFUND
                         );
-                        log.info("Emergency refund: Returned {} chips to user {}", refundAmount, player.getUserId());
+                        log.info("Emergency refund: Returned {} chips to user {} (Stack: {}, In Pot: {})",
+                                totalRefund, player.getUserId(), currentStack, moneyInPot);
                     }
                 } catch (Exception e) {
-                    log.error("Failed to refund chips to user {} during shutdown!", player.getUserId(), e);
+                    log.error("Failed to refund chips to user {} at table {} during shutdown!",
+                            player.getUserId(), table.getId(), e);
                 }
             }
         }
+
+        log.info("Emergency refunds completed.");
     }
 }
