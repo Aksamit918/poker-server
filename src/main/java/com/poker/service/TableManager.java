@@ -9,6 +9,7 @@ import com.poker.persistence.entity.GameTable;
 import com.poker.persistence.repository.GameTableRepository;
 import com.poker.util.TableEventListener;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -31,7 +32,7 @@ public class TableManager implements TableEventListener {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, ScheduledFuture<?>> disconnectTasks = new ConcurrentHashMap<>();
 
-    private static final int DISCONNECT_GRACE_PERIOD = 30;
+    private static final int DISCONNECT_GRACE_PERIOD = 60;
 
     public TableManager(AccountService accountService,
                         GameTableRepository tableRepository,
@@ -235,6 +236,31 @@ public class TableManager implements TableEventListener {
                     this
             );
             tables.put(memoryTable.getId(), memoryTable);
+        }
+    }
+
+    @PreDestroy
+    public void onServerShutdown() {
+        log.warn("CRITICAL: Server is shutting down! Initiating emergency refunds for all active players...");
+
+        for (Table table : tables.values()) {
+            for (Player player : table.getPlayers()) {
+                try {
+                    long refundAmount = player.getChips().get() + player.getRoundContribution();
+
+                    if (refundAmount > 0) {
+                        accountService.depositToWallet(
+                                Long.parseLong(player.getUserId()),
+                                refundAmount,
+                                table.getId(),
+                                TransactionType.SYSTEM_REFUND
+                        );
+                        log.info("Emergency refund: Returned {} chips to user {}", refundAmount, player.getUserId());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to refund chips to user {} during shutdown!", player.getUserId(), e);
+                }
+            }
         }
     }
 }
