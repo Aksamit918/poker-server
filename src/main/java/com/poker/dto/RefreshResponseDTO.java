@@ -1,3 +1,7 @@
 package com.poker.dto;
 
-public record RefreshResponseDTO(String accessToken) {}
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public record RefreshResponseDTO(
+        @JsonProperty("access_token") String accessToken
+) {}

@@ -34,9 +34,9 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final GameTableRepository gameTableRepository;
-    private final RefreshTokenRepository refreshTokenRepository; // Добавили
+    private final RefreshTokenRepository refreshTokenRepository;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final JwtService jwtService; // Добавили
+    private final JwtService jwtService;
     private final TableManager tableManager;
     private final GameEventPublisher eventPublisher;
 
@@ -249,7 +249,7 @@ public class AccountService {
                 java.util.UUID uuid = java.util.UUID.fromString(tableId);
                 table = gameTableRepository.findById(uuid).orElse(null);
             } catch (IllegalArgumentException e) {
-
+                log.warn("Invalid table UUID: {}", tableId);
             }
         }
 
@@ -259,15 +259,15 @@ public class AccountService {
         Transaction tx = new Transaction(account, table, -amount, type);
         transactionRepository.save(tx);
 
-        eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
+        try {
+            eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
+        } catch (Exception e) {
+            log.error("Failed to publish wallet update to Redis, but DB was saved. User: {}, Amount: {}", accountId, amount, e);
+        }
     }
 
     @Transactional
     public void depositToWallet(Long accountId, long amount, String tableId, TransactionType type) {
-        if (amount == 0) {
-            return;
-        }
-
         if (amount < 0) {
             throw new InvalidInputException("error.amount.deposit.positive", amount);
         }
@@ -277,7 +277,9 @@ public class AccountService {
 
         GameTable table = null;
         if (tableId != null) {
-            table = gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
+            try {
+                table = gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
+            } catch (Exception ignored) {}
         }
 
         account.setBalance(account.getBalance() + amount);
@@ -286,7 +288,11 @@ public class AccountService {
         Transaction tx = new Transaction(account, table, amount, type);
         transactionRepository.save(tx);
 
-        eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
+        try {
+            eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
+        } catch (Exception e) {
+            log.error("Failed to publish wallet update to Redis, but DB was saved. User: {}, Amount: {}", accountId, amount, e);
+        }
     }
 
     private boolean processDailyBonus(Account account) {

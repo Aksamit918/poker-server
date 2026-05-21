@@ -695,10 +695,11 @@ public class Table {
     public void leaveTable(Player player) {
         synchronized (lock) {
             if (!players.contains(player)) {
-                throw new PlayerNotFoundException("error.player.not.found");
+                return;
             }
 
             boolean wasActivePlayer = false;
+            int seatIndex = player.getSeatIndex();
 
             if (player.isInHand()) {
                 if (isPlayerTurn(player)) {
@@ -710,8 +711,10 @@ public class Table {
 
             players.remove(player);
 
+            long finalChipsToReturn = player.getChips().get();
+
             if (eventListener != null) {
-                eventListener.onPlayerLeave(player.getUserId(), player.getChips().get());
+                eventListener.onPlayerLeave(player.getUserId(), finalChipsToReturn, seatIndex);
             }
 
             if (players.isEmpty()) {
@@ -721,6 +724,9 @@ public class Table {
             }
 
             if (state == TableStates.WAITING_FOR_PLAYERS) {
+                if (eventListener != null) {
+                    eventListener.onTableUpdate(this);
+                }
                 return;
             }
 
@@ -736,6 +742,9 @@ public class Table {
             if (wasActivePlayer) {
                 boolean hasNext = advanceTurn();
                 if (!hasNext) {
+                    if (eventListener != null) {
+                        eventListener.onTableUpdate(this);
+                    }
                     endBettingRound();
                 } else {
                     startTimer();
@@ -776,30 +785,32 @@ public class Table {
                 Player timedOutPlayer = getPlayerBySeat(activePlayerIdx);
                 if (timedOutPlayer != null) {
                     timedOutPlayer.incrementMissedTurns();
-                    processFold(timedOutPlayer);
-
-                    if (eventListener != null) {
-                        eventListener.onPlayerAction(this.id, timedOutPlayer, ActionType.FOLD, 0, pot.get());
-                    }
-
-                    long survivors = players.stream().filter(Player::isInHand).count();
-                    if (survivors < 2) {
-                        finishHandPrematurely();
-                        return;
-                    }
-
-                    boolean hasNext = advanceTurn();
-                    if (!hasNext) {
-                        endBettingRound();
-                    } else {
-                        startTimer();
-                        if (eventListener != null) {
-                            eventListener.onTableUpdate(this);
-                        }
-                    }
 
                     if (timedOutPlayer.isKickRequired()) {
                         leaveTable(timedOutPlayer);
+                    } else {
+                        processFold(timedOutPlayer);
+
+                        if (eventListener != null) {
+                            eventListener.onPlayerAction(this.id, timedOutPlayer, ActionType.FOLD, 0, pot.get());
+                        }
+
+                        long survivors = players.stream().filter(Player::isInHand).count();
+                        if (survivors < 2) {
+                            finishHandPrematurely();
+                            return;
+                        }
+
+                        boolean hasNext = advanceTurn();
+                        if (!hasNext) {
+                            if (eventListener != null) eventListener.onTableUpdate(this);
+                            endBettingRound();
+                        } else {
+                            startTimer();
+                            if (eventListener != null) {
+                                eventListener.onTableUpdate(this);
+                            }
+                        }
                     }
                 }
             }

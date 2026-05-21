@@ -2,6 +2,7 @@ package com.poker.config;
 
 import com.poker.service.AccountService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -17,6 +18,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 import java.util.List;
 
+@Slf4j
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
@@ -45,6 +47,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
+                if (accessor == null || accessor.getCommand() == null) {
+                    return message;
+                }
+
                 if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                     List<String> authHeaders = accessor.getNativeHeader("Authorization");
 
@@ -57,17 +63,39 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         }
 
                         if (token != null && !token.isBlank() && token.contains(".")) {
-                            String userId = accountService.getUserIdByToken(token);
-
-                            if (userId != null) {
-                                accessor.getSessionAttributes().put("userId", userId);
-                                accessor.setUser(() -> userId);
+                            try {
+                                String userId = accountService.getUserIdByToken(token);
+                                if (userId != null) {
+                                    accessor.getSessionAttributes().put("userId", userId);
+                                    accessor.getSessionAttributes().put("jwtToken", token);
+                                    accessor.setUser(() -> userId);
+                                }
+                            } catch (Exception e) {
+                                log.warn("WS Connect rejected: invalid token");
+                                throw new IllegalArgumentException("Invalid token");
                             }
-                        } else {
-                            //System.out.println("DEBUG WS: Received header is: " + rawHeader);
                         }
                     }
+                } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+                    String token = (String) accessor.getSessionAttributes().get("jwtToken");
+
+                    if (token == null) {
+                        log.warn("WS Subscribe rejected: No token in session");
+                        throw new IllegalArgumentException("Unauthorized");
+                    }
+
+                    try {
+                        String userId = accountService.getUserIdByToken(token);
+                        if (userId == null) {
+                            log.warn("WS Subscribe rejected: Token expired during active session");
+                            throw new IllegalArgumentException("Token expired");
+                        }
+                    } catch (Exception e) {
+                        log.warn("WS Subscribe rejected: Token validation failed");
+                        throw new IllegalArgumentException("Token expired");
+                    }
                 }
+
                 return message;
             }
         });

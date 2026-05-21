@@ -54,7 +54,7 @@ public class TableManager implements TableEventListener {
     }
 
     @Override
-    public void onPlayerLeave(String userId, long chips)    {
+    public void onPlayerLeave(String userId, long chips, int seatIndex)    {
         String tableId = activePlayers.get(userId);
         if (tableId == null) return;
 
@@ -71,7 +71,7 @@ public class TableManager implements TableEventListener {
         eventPublisher.publishPlayerStatus(new PlayerStatusEvent(
                 "PLAYER_STATUS",
                 tableId,
-                -1,
+                seatIndex,
                 "LEFT",
                 realNickname
         ));
@@ -269,6 +269,6 @@ public class TableManager implements TableEventListener {
             }
         }
 
-        log.info("Emergency refunds completed.");
+        log.info("Emergency refunds completed successfully.");
     }
 }
