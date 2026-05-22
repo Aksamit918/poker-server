@@ -2,6 +2,7 @@ package com.poker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Table;
+import com.poker.util.FormatUtils;
 
 public record TableDTO(
         @JsonProperty("table_id") String id,
@@ -11,9 +12,11 @@ public record TableDTO(
         @JsonProperty("blinds") String blinds,
         @JsonProperty("min_buy_in") long minBuyIn,
         @JsonProperty("max_buy_in") long maxBuyIn,
+        @JsonProperty("min_buy_in_formatted") String minBuyInFormatted,
+        @JsonProperty("max_buy_in_formatted") String maxBuyInFormatted,
         @JsonProperty("current_players") int currentPlayers,
         @JsonProperty("max_players") int maxPlayers,
-        String state
+        @JsonProperty("state") String state
 ) {
     public static TableDTO createTableDTO(Table table) {
         return new TableDTO(
@@ -21,9 +24,11 @@ public record TableDTO(
                 table.getName(),
                 table.getMIN_PLAYERS(),
                 table.getMAX_PLAYERS(),
-                table.getSmallBlindBet() + "/" + table.getBigBlindBet(),
+                FormatUtils.formatBlinds(table.getSmallBlindBet(), table.getBigBlindBet()),
                 table.getMinBuyIn(),
                 table.getMaxBuyIn(),
+                FormatUtils.format(table.getMinBuyIn()),
+                FormatUtils.format(table.getMaxBuyIn()),
                 table.getPlayerCount(),
                 table.getMaxPlayers(),
                 table.getState().name()

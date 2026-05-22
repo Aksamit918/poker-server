@@ -271,4 +271,14 @@ public class TableManager implements TableEventListener {
 
         log.info("Emergency refunds completed successfully.");
     }
+
+    @Override
+    public void onHandFinished(List<String> playersInHand, Map<String, Long> winnersAndAmounts) {
+        for (String userId : playersInHand) {
+            boolean isWinner = winnersAndAmounts.containsKey(userId);
+            long amountWon = isWinner ? winnersAndAmounts.get(userId) : 0;
+
+            accountService.updatePlayerStats(userId, isWinner, amountWon);
+        }
+    }
 }

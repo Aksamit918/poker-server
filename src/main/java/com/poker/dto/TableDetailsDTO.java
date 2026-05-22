@@ -4,37 +4,33 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Card;
 import com.poker.model.Table;
 import com.poker.model.TableStates;
+import com.poker.util.FormatUtils;
 
 import java.util.List;
 
 public record TableDetailsDTO(
-        @JsonProperty("event_type")
-        String eventType,
-        @JsonProperty("table_id")
-        String tableId,
-        @JsonProperty("table_name")
-        String name,
+        @JsonProperty("event_type") String eventType,
+        @JsonProperty("table_id") String tableId,
+        @JsonProperty("table_name") String name,
         @JsonProperty("big_blind") long bigBlind,
+        @JsonProperty("big_blind_formatted") String bigBlindFormatted,
         @JsonProperty("min_buy_in") long minBuyIn,
+        @JsonProperty("min_buy_in_formatted") String minBuyInFormatted,
         @JsonProperty("max_buy_in") long maxBuyIn,
-        long pot,
-        @JsonProperty("dealer_seat")
-        int dealerIdx,
-        @JsonProperty("current_turn_seat")
-        int activePlayerIdx,
-        @JsonProperty("community_cards")
-        List<String> communityCards,
-        List<PlayerDTO> players,
-        String state,
+        @JsonProperty("max_buy_in_formatted") String maxBuyInFormatted,
+        @JsonProperty("pot") long pot,
+        @JsonProperty("pot_formatted") String potFormatted,
+        @JsonProperty("dealer_seat") int dealerIdx,
+        @JsonProperty("current_turn_seat") int activePlayerIdx,
+        @JsonProperty("community_cards") List<String> communityCards,
+        @JsonProperty("players") List<PlayerDTO> players,
+        @JsonProperty("state") String state,
         @JsonProperty("showdown_details") ShowdownDetailsDTO showdownDetails
 ) {
-    public static TableDetailsDTO createTableDetailsDTO(Table table,  String requestingUserId) {
+    public static TableDetailsDTO createTableDetailsDTO(Table table, String requestingUserId) {
         long pot = table.getPot();
         long currentMax = table.getCurrentMaxBet();
         String state = table.getState().name();
-
-        int dealerIdx = table.getDealerIdx();
-        int activePlayerIdx = table.getActivePlayerIdx();
 
         List<String> cardStrings = table.getCommunityCards().stream()
                 .map(Card::getShortName)
@@ -59,11 +55,15 @@ public record TableDetailsDTO(
                 table.getId(),
                 table.getName(),
                 table.getBigBlindBet(),
+                FormatUtils.format(table.getBigBlindBet()),
                 table.getMinBuyIn(),
+                FormatUtils.format(table.getMinBuyIn()),
                 table.getMaxBuyIn(),
+                FormatUtils.format(table.getMaxBuyIn()),
                 pot,
-                dealerIdx,
-                activePlayerIdx,
+                FormatUtils.format(pot),
+                table.getDealerIdx(),
+                table.getActivePlayerIdx(),
                 cardStrings,
                 playerDTOs,
                 state,

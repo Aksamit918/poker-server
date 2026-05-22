@@ -317,4 +317,26 @@ public class AccountService {
 
         return false;
     }
+
+    @Transactional
+    public void updatePlayerStats(String userId, boolean isWinner, long amountWon) {
+        try {
+            Account account = accountRepository.findById(Long.parseLong(userId)).orElse(null);
+            if (account == null) return;
+
+            account.setHandsPlayed(account.getHandsPlayed() + 1);
+
+            if (isWinner) {
+                account.setHandsWon(account.getHandsWon() + 1);
+                account.setTotalWon(account.getTotalWon() + amountWon);
+
+                if (amountWon > account.getBiggestPot()) {
+                    account.setBiggestPot(amountWon);
+                }
+            }
+            accountRepository.save(account);
+        } catch (Exception e) {
+            log.error("Failed to update stats for user {}", userId, e);
+        }
+    }
 }

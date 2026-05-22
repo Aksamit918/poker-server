@@ -35,6 +35,18 @@ public class Account {
     @Column(name = "created_at", updatable = false, nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "hands_played", nullable = false)
+    private Integer handsPlayed = 0;
+
+    @Column(name = "hands_won", nullable = false)
+    private Integer handsWon = 0;
+
+    @Column(name = "total_won", nullable = false)
+    private Long totalWon = 0L;
+
+    @Column(name = "biggest_pot", nullable = false)
+    private Long biggestPot = 0L;
+
     public Account(String login, String password, String nickname) {
         this.login =  login;
         this.password = password;

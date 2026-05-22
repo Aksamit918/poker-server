@@ -505,6 +505,17 @@ public class Table {
                 ));
 
                 pot.set(0);
+
+                if (eventListener != null) {
+                    List<String> allPlayersIds = players.stream()
+                            .filter(p -> !p.getHand().isEmpty())
+                            .map(Player::getUserId).toList();
+
+                    Map<String, Long> winnersMap = new HashMap<>();
+                    winnersMap.put(winner.getUserId(), winAmount);
+
+                    eventListener.onHandFinished(allPlayersIds, winnersMap);
+                }
             }
 
             if (eventListener != null) {
@@ -645,6 +656,19 @@ public class Table {
             potLayerIndex++;
         }
         lastShowdownPayouts.addAll(aggregatedPayouts.values());
+
+        if (eventListener != null) {
+            List<String> allPlayersIds = players.stream()
+                    .filter(p -> !p.getHand().isEmpty())
+                    .map(Player::getUserId).toList();
+
+            Map<String, Long> winnersMap = new HashMap<>();
+            for (ShowdownPayoutDTO payout : lastShowdownPayouts) {
+                winnersMap.merge(payout.userId(), payout.amount(), Long::sum);
+            }
+            eventListener.onHandFinished(allPlayersIds, winnersMap);
+        }
+
         return potLayerIndex;
     }
 
