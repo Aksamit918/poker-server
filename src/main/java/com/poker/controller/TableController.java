@@ -82,7 +82,6 @@ public class TableController {
             if (request.passcode() == null || request.passcode().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "error.passcode.required");
             }
-
             if (!passwordEncoder.matches(request.passcode(), table.getPasscode())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "error.passcode.wrong");
             }
@@ -93,7 +92,6 @@ public class TableController {
             throw new ChipAmountException("error.chips.amount.invalid");
         }
 
-        // Списываем фишки и сажаем игрока...
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
         Account account = accountService.findById(userId);
 
