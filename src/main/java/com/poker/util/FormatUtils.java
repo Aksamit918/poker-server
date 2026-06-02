@@ -7,7 +7,8 @@ public class FormatUtils {
     private static final NumberFormat COMPACT_FORMAT = NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);
 
     public static String format(long number) {
-        return COMPACT_FORMAT.format(number);
+        NumberFormat compactFormat = NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);
+        return compactFormat.format(number);
     }
 
     public static String formatBlinds(long smallBlind, long bigBlind) {

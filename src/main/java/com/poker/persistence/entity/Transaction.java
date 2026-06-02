@@ -31,7 +31,7 @@ public class Transaction {
     private Long amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    @Column(name = "transaction_type", nullable = false)
     private TransactionType type;
 
     @CreationTimestamp

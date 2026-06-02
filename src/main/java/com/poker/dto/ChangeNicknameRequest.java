@@ -1,3 +1,7 @@
 package com.poker.dto;
 
-public record ChangeNicknameRequest(String newNickname) {}
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public record ChangeNicknameRequest(
+        @JsonProperty("new_nickname") String newNickname
+) {}

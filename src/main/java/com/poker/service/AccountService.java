@@ -131,6 +131,10 @@ public class AccountService {
             throw new IllegalArgumentException("error.login.taken");
         }
 
+        if (login == null || login.isBlank() || login.length() > 20) {
+            throw new InvalidInputException("error.login.range", 1, 20);
+        }
+
         if (password == null || password.isBlank() || password.length() < 6) {
             throw new InvalidInputException("error.password.length", 6);
         }
@@ -196,8 +200,8 @@ public class AccountService {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new AccountNotFoundException("Account not found"));
 
-        if (newNickname == null || newNickname.isBlank()) {
-            throw new InvalidInputException("error.nickname.empty");
+        if (newNickname == null || newNickname.isBlank() || newNickname.length() > 20) {
+            throw new InvalidInputException("error.nickname.range", 1, 20);
         }
 
         account.setNickname(newNickname);

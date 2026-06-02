@@ -211,7 +211,6 @@ public class TableManager implements TableEventListener {
         activePlayers.put(userId, tableId);
         cancelDisconnectTask(userId);
     }
-
     public void unregisterPlayer(String userId) {
         activePlayers.remove(userId);
         cancelDisconnectTask(userId);

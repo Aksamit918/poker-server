@@ -786,7 +786,7 @@ public class Table {
 
     private void stopTimer() {
         if (currentTimer != null && !currentTimer.isDone()) {
-            currentTimer.cancel(true);
+            currentTimer.cancel(false);
         }
     }
     private void startTimer() {

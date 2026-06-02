@@ -5,6 +5,7 @@ import com.poker.model.Table;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
 import com.poker.service.TableManager;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -83,10 +84,14 @@ public class AuthController {
     }
 
     @PatchMapping("/{id}/password")
-    public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<Map<String, String>> changePassword(@PathVariable Long id, @Valid @RequestBody ChangePasswordRequest request) {
         verifyUserIdMatch(id);
         accountService.changePassword(id, request.oldPassword(), request.newPassword());
-        return ResponseEntity.ok("Password updated successfully");
+
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Password updated successfully"
+        ));
     }
 
     @DeleteMapping("/{id}")

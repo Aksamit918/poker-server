@@ -3,14 +3,16 @@ package com.poker.persistence.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "game_tables")
+@Check(constraints = "small_blind > 0 AND big_blind > 0 AND small_blind < big_blind")
+@Check(constraints = "min_players >= 2 AND max_players <= 10 AND min_players <= max_players")
 @Data
 @NoArgsConstructor
 public class GameTable {
@@ -18,7 +20,7 @@ public class GameTable {
     @Id
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String name;
 
     @Column(name = "small_blind", nullable = false)

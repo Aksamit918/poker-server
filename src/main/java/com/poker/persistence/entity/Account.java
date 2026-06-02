@@ -16,13 +16,13 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(unique = true, nullable = false, updatable = false, length = 20)
     private String login;
 
     @Column(name= "password_hash", nullable = false, length = 255)
     private String password;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 20)
     private String nickname;
 
     @Column(name = "wallet_balance", nullable = false)

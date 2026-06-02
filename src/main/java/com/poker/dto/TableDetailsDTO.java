@@ -12,14 +12,13 @@ public record TableDetailsDTO(
         @JsonProperty("event_type") String eventType,
         @JsonProperty("table_id") String tableId,
         @JsonProperty("table_name") String name,
+
         @JsonProperty("big_blind") long bigBlind,
-        @JsonProperty("big_blind_formatted") String bigBlindFormatted,
-        @JsonProperty("min_buy_in") long minBuyIn,
-        @JsonProperty("min_buy_in_formatted") String minBuyInFormatted,
-        @JsonProperty("max_buy_in") long maxBuyIn,
-        @JsonProperty("max_buy_in_formatted") String maxBuyInFormatted,
+
+        @JsonProperty("min_buy_in") String minBuyIn,
+        @JsonProperty("max_buy_in") String maxBuyIn,
+
         @JsonProperty("pot") long pot,
-        @JsonProperty("pot_formatted") String potFormatted,
         @JsonProperty("dealer_seat") int dealerIdx,
         @JsonProperty("current_turn_seat") int activePlayerIdx,
         @JsonProperty("community_cards") List<String> communityCards,
@@ -40,7 +39,7 @@ public record TableDetailsDTO(
 
         List<PlayerDTO> playerDTOs = table.getPlayers().stream()
                 .map(p -> {
-                    boolean isOwner = p.getUserId().equals(requestingUserId);
+                    boolean isOwner = requestingUserId != null && requestingUserId.equals(p.getUserId());
                     return PlayerDTO.fromPlayer(p, currentMax, isOwner, isShowdown);
                 })
                 .toList();
@@ -55,13 +54,11 @@ public record TableDetailsDTO(
                 table.getId(),
                 table.getName(),
                 table.getBigBlindBet(),
-                FormatUtils.format(table.getBigBlindBet()),
-                table.getMinBuyIn(),
+
                 FormatUtils.format(table.getMinBuyIn()),
-                table.getMaxBuyIn(),
                 FormatUtils.format(table.getMaxBuyIn()),
+
                 pot,
-                FormatUtils.format(pot),
                 table.getDealerIdx(),
                 table.getActivePlayerIdx(),
                 cardStrings,
