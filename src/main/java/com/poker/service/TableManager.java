@@ -29,6 +29,8 @@ public class TableManager implements TableEventListener {
     private final GameTableRepository tableRepository;
     private final GameEventPublisher eventPublisher;
 
+    private final org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder passwordEncoder;
+
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, ScheduledFuture<?>> disconnectTasks = new ConcurrentHashMap<>();
 
@@ -36,10 +38,12 @@ public class TableManager implements TableEventListener {
 
     public TableManager(AccountService accountService,
                         GameTableRepository tableRepository,
-                        GameEventPublisher eventPublisher) {
+                        GameEventPublisher eventPublisher,
+                        org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder passwordEncoder) {
         this.accountService = accountService;
         this.tableRepository = tableRepository;
         this.eventPublisher = eventPublisher;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -54,7 +58,7 @@ public class TableManager implements TableEventListener {
     }
 
     @Override
-    public void onPlayerLeave(String userId, long chips, int seatIndex)    {
+    public void onPlayerLeave(String userId, long chips, int seatIndex) {
         String tableId = activePlayers.get(userId);
         if (tableId == null) return;
 
@@ -83,13 +87,22 @@ public class TableManager implements TableEventListener {
             eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
 
             if (table.getPlayerCount() == 0) {
-                tableRepository.findById(UUID.fromString(tableId)).ifPresent(dbTable -> {
-                    if (!dbTable.getIsSystem()) {
-                        tables.remove(tableId);
-                        tableRepository.delete(dbTable);
-                        log.info("Custom table [{}] deleted.", dbTable.getName());
-                    }
-                });
+                try {
+                    UUID uuid = UUID.fromString(tableId);
+                    tableRepository.findById(uuid).ifPresent(dbTable -> {
+
+                        if (!dbTable.getIsSystem()) {
+                            tables.remove(tableId);
+                            tableRepository.delete(dbTable);
+
+                            eventPublisher.publishLobbyUpdate(tableId, -1, table.getMaxPlayers());
+
+                            log.info("Custom table [{}] was destroyed because it became empty.", dbTable.getName());
+                        }
+                    });
+                } catch (Exception e) {
+                    log.error("Error trying to delete empty custom table: {}", tableId, e);
+                }
             }
         }
     }
@@ -154,7 +167,7 @@ public class TableManager implements TableEventListener {
     }
 
     public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum,
-                                       int maxPlayersNum, String userId, long chips, String passcode) {
+                                       int maxPlayersNum, String userId, long chips, String rawPasscode) {
         if (activePlayers.containsKey(userId)) {
             throw new IllegalTableStateException("error.player.already.playing");
         }
@@ -165,17 +178,22 @@ public class TableManager implements TableEventListener {
         }
 
         UUID tableUuid = UUID.fromString(tableIdStr);
-        boolean isPrivate = passcode != null && !passcode.isEmpty();
+        boolean isPrivate = rawPasscode != null && !rawPasscode.isBlank();
+
+        String hashedPasscode = null;
+        if (isPrivate) {
+            hashedPasscode = passwordEncoder.encode(rawPasscode);
+        }
 
         GameTable dbTable = new GameTable(
                 tableUuid, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
-                isPrivate, passcode, false, null
+                isPrivate, hashedPasscode, false, null
         );
         tableRepository.save(dbTable);
 
         Table newTable = new Table(
                 tableIdStr, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
-                isPrivate, passcode, this
+                isPrivate, hashedPasscode, this
         );
 
         tables.put(tableIdStr, newTable);
@@ -188,7 +206,8 @@ public class TableManager implements TableEventListener {
 
             Player creator = new Player(
                     userId, account.getNickname(), seatIndex,
-                    new AtomicLong(account.getBalance()), new AtomicLong(chips)
+                    new java.util.concurrent.atomic.AtomicLong(account.getBalance()),
+                    new java.util.concurrent.atomic.AtomicLong(chips)
             );
 
             newTable.joinTable(creator);

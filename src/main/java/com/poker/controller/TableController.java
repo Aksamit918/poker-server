@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.Collection;
 import java.util.List;
@@ -32,6 +33,7 @@ public class TableController {
 
     private final TableManager tableManager;
     private final AccountService accountService;
+    private final BCryptPasswordEncoder passwordEncoder;
 
     private String getAuthenticatedUserId() {
         return (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -77,10 +79,11 @@ public class TableController {
         }
 
         if (table.isPrivate()) {
-            if (request.passcode() == null || request.passcode().isEmpty()) {
+            if (request.passcode() == null || request.passcode().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "error.passcode.required");
             }
-            if (!table.getPasscode().equals(request.passcode())) {
+
+            if (!passwordEncoder.matches(request.passcode(), table.getPasscode())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "error.passcode.wrong");
             }
         }
@@ -90,15 +93,13 @@ public class TableController {
             throw new ChipAmountException("error.chips.amount.invalid");
         }
 
+        // Списываем фишки и сажаем игрока...
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
         Account account = accountService.findById(userId);
 
         Player newPlayer = new Player(
-                authUserId,
-                account.getNickname(),
-                table.getFreeSeat(),
-                new AtomicLong(account.getBalance()),
-                new AtomicLong(userBuyIn)
+                authUserId, account.getNickname(), table.getFreeSeat(),
+                new AtomicLong(account.getBalance()), new AtomicLong(userBuyIn)
         );
 
         table.joinTable(newPlayer);
