@@ -3,16 +3,19 @@ package com.poker.persistence.entity;
 import com.poker.model.TransactionType;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "transactions")
-@Data
-@NoArgsConstructor
 public class Transaction {
 
     @Id

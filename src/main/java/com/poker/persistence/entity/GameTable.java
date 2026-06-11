@@ -2,19 +2,22 @@ package com.poker.persistence.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.Check;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "game_tables")
 @Check(constraints = "small_blind > 0 AND big_blind > 0 AND small_blind < big_blind")
 @Check(constraints = "min_players >= 2 AND max_players <= 10 AND min_players <= max_players")
-@Data
-@NoArgsConstructor
 public class GameTable {
 
     @Id
