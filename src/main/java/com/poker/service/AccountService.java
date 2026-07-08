@@ -17,7 +17,6 @@ import com.poker.persistence.repository.TransactionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +24,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -35,20 +33,17 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final GameTableRepository gameTableRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final BCryptPasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TableManager tableManager;
     private final GameEventPublisher eventPublisher;
 
     private final long refreshTokenExpirationMs;
-    private final java.time.OffsetDateTime serverStartTime = java.time.OffsetDateTime.now();
     private final long DAILY_BONUS_AMOUNT = 5000L;
 
     public AccountService(AccountRepository accountRepository,
                           TransactionRepository transactionRepository,
                           GameTableRepository gameTableRepository,
                           RefreshTokenRepository refreshTokenRepository,
-                          BCryptPasswordEncoder passwordEncoder,
                           JwtService jwtService,
                           @Value("${poker.jwt.refresh-expiration}") Duration refreshTokenDuration,
                           @Lazy TableManager tableManager,
@@ -57,7 +52,6 @@ public class AccountService {
         this.transactionRepository = transactionRepository;
         this.gameTableRepository = gameTableRepository;
         this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenExpirationMs = refreshTokenDuration.toMillis();
         this.tableManager = tableManager;
@@ -70,7 +64,6 @@ public class AccountService {
 
         refreshToken.setAccount(account);
         refreshToken.setToken(UUID.randomUUID().toString());
-
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenExpirationMs));
 
         return refreshTokenRepository.saveAndFlush(refreshToken);
@@ -78,12 +71,12 @@ public class AccountService {
 
     @Transactional
     public String refreshAccessToken(String requestRefreshToken) {
-        log.info("[REFRESH] Запрос с токеном: {}", requestRefreshToken);
+        log.info("[REFRESH] Request with token: {}", requestRefreshToken);
 
         return refreshTokenRepository.findByToken(requestRefreshToken)
                 .map(token -> {
                     if (token.getExpiryDate().isBefore(Instant.now())) {
-                        log.error("[REFRESH] Токен найден, но он просрочен! Истек: {}", token.getExpiryDate());
+                        log.error("[REFRESH] Token expired! Expired at: {}", token.getExpiryDate());
                         refreshTokenRepository.delete(token);
                         throw new InvalidCredentialsException("error.refresh.expired");
                     }
@@ -91,75 +84,32 @@ public class AccountService {
                 })
                 .map(RefreshToken::getAccount)
                 .map(account -> {
-                    log.info("[REFRESH] Успех! Выдаем новый Access для юзера: {}", account.getLogin());
+                    log.info("[REFRESH] Success! New Access token for: {}", account.getEmail());
                     return jwtService.generateToken(String.valueOf(account.getId()));
                 })
                 .orElseThrow(() -> {
-                    log.error("[REFRESH] Токен {} вообще не найден в базе данных!", requestRefreshToken);
+                    log.error("[REFRESH] Token {} not found in DB!", requestRefreshToken);
                     return new InvalidCredentialsException("error.refresh.invalid");
                 });
     }
 
-    public void validateSession(Long userId, String token) {
-        String tokenUserId = jwtService.extractUserId(token);
-
-        if (tokenUserId == null) {
-            throw new InvalidCredentialsException("error.session.expired");
-        }
-
-        if (!tokenUserId.equals(String.valueOf(userId))) {
-            throw new InvalidCredentialsException("error.session.invalid");
-        }
-    }
-
-    public String getUserIdByToken(String token) {
-        if (token == null) {
-            return null;
-        }
-
-        return jwtService.extractUserId(token);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Account> searchAccounts(String name) {
-        return accountRepository.findByNicknameContaining(name);
-    }
-
     @Transactional
-    public LoginResponseDTO register(String login, String password, String nickname) {
-        if (accountRepository.findByLogin(login).isPresent()) {
-            throw new IllegalArgumentException("error.login.taken");
-        }
+    public LoginResponseDTO authenticateWithGoogle(String googleId, String email, String name) {
+        Account account = accountRepository.findByGoogleId(googleId).orElse(null);
 
-        if (login == null || login.isBlank() || login.length() > 20) {
-            throw new InvalidInputException("error.login.range", 1, 20);
-        }
+        if (account == null) {
+            String safeNickname = (name == null || name.isBlank()) ? "Player_" + UUID.randomUUID().toString().substring(0, 5) : name;
+            if (safeNickname.length() > 20) {
+                safeNickname = safeNickname.substring(0, 20);
+            }
 
-        if (password == null || password.isBlank() || password.length() < 6) {
-            throw new InvalidInputException("error.password.length", 6);
-        }
+            account = new Account();
+            account.setGoogleId(googleId);
+            account.setEmail(email);
+            account.setNickname(safeNickname);
 
-        if (nickname == null || nickname.isBlank() || nickname.length() > 20) {
-            throw new InvalidInputException("error.nickname.range", 1, 20);
-        }
-
-        String encodedPassword = passwordEncoder.encode(password);
-        Account account = new Account(login, encodedPassword, nickname);
-        account = accountRepository.save(account);
-
-        String accessToken = jwtService.generateToken(String.valueOf(account.getId()));
-        RefreshToken refreshToken = createRefreshToken(account);
-
-        return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), false);
-    }
-
-    @Transactional
-    public LoginResponseDTO login(String login, String password) {
-        Account account = accountRepository.findByLogin(login)
-                .orElseThrow(() -> new AccountNotFoundException("error.account.not.found"));
-
-        if (!passwordEncoder.matches(password, account.getPassword())) {
-            throw new InvalidCredentialsException("error.password.incorrect");
+            account = accountRepository.save(account);
+            log.info("Registered brand new player via Google: {}", email);
         }
 
         String userIdStr = account.getId().toString();
@@ -209,24 +159,6 @@ public class AccountService {
     }
 
     @Transactional
-    public void changePassword(Long id, String oldPassword, String newPassword) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found"));
-
-        if (!passwordEncoder.matches(oldPassword, account.getPassword())) {
-            throw new InvalidCredentialsException("error.password.incorrect");
-        }
-
-        if (newPassword == null || newPassword.length() < 6) {
-            throw new InvalidInputException("error.password.length", 6);
-        }
-
-        String encodedNewPassword = passwordEncoder.encode(newPassword);
-        account.setPassword(encodedNewPassword);
-        accountRepository.save(account);
-    }
-
-    @Transactional
     public void deleteAccount(Long id) {
         if (!accountRepository.existsById(id)) {
             throw new AccountNotFoundException("error.account.not.found");
@@ -234,91 +166,77 @@ public class AccountService {
         accountRepository.deleteById(id);
     }
 
+    public void validateSession(Long userId, String token) {
+        String tokenUserId = jwtService.extractUserId(token);
+        if (tokenUserId == null) throw new InvalidCredentialsException("error.session.expired");
+        if (!tokenUserId.equals(String.valueOf(userId))) throw new InvalidCredentialsException("error.session.invalid");
+    }
+
+    public String getUserIdByToken(String token) {
+        return (token == null) ? null : jwtService.extractUserId(token);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Account> searchAccounts(String name) {
+        return accountRepository.findByNicknameContaining(name);
+    }
+
     @Transactional
     public void withdrawFromWallet(Long accountId, long amount, String tableId, TransactionType type) {
-        if (amount <= 0) {
-            throw new InvalidInputException("error.amount.positive");
-        }
+        if (amount <= 0) throw new InvalidInputException("error.amount.positive");
+        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("User not found"));
+        if (account.getBalance() < amount) throw new ChipAmountException("error.chips.insufficient", amount, account.getBalance());
 
-        Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new AccountNotFoundException("User not found"));
-
-        if (account.getBalance() < amount) {
-            throw new ChipAmountException("error.chips.insufficient", amount, account.getBalance());
-        }
-
-        GameTable table = null;
-        if (tableId != null) {
-            try {
-                java.util.UUID uuid = java.util.UUID.fromString(tableId);
-                table = gameTableRepository.findById(uuid).orElse(null);
-            } catch (IllegalArgumentException e) {
-                log.warn("Invalid table UUID: {}", tableId);
-            }
-        }
-
+        GameTable table = resolveTable(tableId);
         account.setBalance(account.getBalance() - amount);
         accountRepository.save(account);
 
-        Transaction tx = new Transaction(account, table, -amount, type);
-        transactionRepository.save(tx);
-
-        try {
-            eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
-        } catch (Exception e) {
-            log.error("Failed to publish wallet update to Redis, but DB was saved. User: {}, Amount: {}", accountId, amount, e);
-        }
+        transactionRepository.save(new Transaction(account, table, -amount, type));
+        publishWalletUpdateSafe(accountId, account.getBalance(), type);
     }
 
     @Transactional
     public void depositToWallet(Long accountId, long amount, String tableId, TransactionType type) {
-        if (amount < 0) {
-            throw new InvalidInputException("error.amount.deposit.positive", amount);
-        }
+        if (amount < 0) throw new InvalidInputException("error.amount.deposit.positive", amount);
+        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("User not found"));
 
-        Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new AccountNotFoundException("User not found"));
-
-        GameTable table = null;
-        if (tableId != null) {
-            try {
-                table = gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
-            } catch (Exception ignored) {}
-        }
-
+        GameTable table = resolveTable(tableId);
         account.setBalance(account.getBalance() + amount);
         accountRepository.save(account);
 
-        Transaction tx = new Transaction(account, table, amount, type);
-        transactionRepository.save(tx);
+        transactionRepository.save(new Transaction(account, table, amount, type));
+        publishWalletUpdateSafe(accountId, account.getBalance(), type);
+    }
 
+    private GameTable resolveTable(String tableId) {
+        if (tableId == null) return null;
         try {
-            eventPublisher.publishWalletUpdate(String.valueOf(accountId), account.getBalance(), type.name());
+            return gameTableRepository.findById(java.util.UUID.fromString(tableId)).orElse(null);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid table UUID: {}", tableId);
+            return null;
+        }
+    }
+
+    private void publishWalletUpdateSafe(Long accountId, long newBalance, TransactionType type) {
+        try {
+            eventPublisher.publishWalletUpdate(String.valueOf(accountId), newBalance, type.name());
         } catch (Exception e) {
-            log.error("Failed to publish wallet update to Redis, but DB was saved. User: {}, Amount: {}", accountId, amount, e);
+            log.error("Failed to publish wallet update to Redis, but DB was saved. User: {}", accountId, e);
         }
     }
 
     private boolean processDailyBonus(Account account) {
         OffsetDateTime now = OffsetDateTime.now();
-
         boolean isFirstTime = (account.getLastBonusAt() == null);
-
         boolean isTimePassed = !isFirstTime && java.time.Duration.between(account.getLastBonusAt(), now).toHours() >= 24;
 
         if (isFirstTime || isTimePassed) {
             account.setBalance(account.getBalance() + DAILY_BONUS_AMOUNT);
             account.setLastBonusAt(now);
-
-            transactionRepository.save(new Transaction(
-                    account,
-                    null,
-                    DAILY_BONUS_AMOUNT,
-                    TransactionType.DAILY_BONUS)
-            );
+            transactionRepository.save(new Transaction(account, null, DAILY_BONUS_AMOUNT, TransactionType.DAILY_BONUS));
             return true;
         }
-
         return false;
     }
 
@@ -329,14 +247,10 @@ public class AccountService {
             if (account == null) return;
 
             account.setHandsPlayed(account.getHandsPlayed() + 1);
-
             if (isWinner) {
                 account.setHandsWon(account.getHandsWon() + 1);
                 account.setTotalWon(account.getTotalWon() + amountWon);
-
-                if (amountWon > account.getBiggestPot()) {
-                    account.setBiggestPot(amountWon);
-                }
+                if (amountWon > account.getBiggestPot()) account.setBiggestPot(amountWon);
             }
             accountRepository.save(account);
         } catch (Exception e) {

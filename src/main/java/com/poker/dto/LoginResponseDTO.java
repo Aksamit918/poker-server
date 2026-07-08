@@ -5,7 +5,7 @@ import com.poker.persistence.entity.Account;
 
 public record LoginResponseDTO(
         @JsonProperty("user_id") String userId,
-        @JsonProperty("login") String login,
+        @JsonProperty("email") String login,
         @JsonProperty("nickname") String nickname,
         @JsonProperty("wallet_balance") long walletBalance,
         @JsonProperty("access_token")  String accessToken,
@@ -16,7 +16,7 @@ public record LoginResponseDTO(
                                                String refreshToken, boolean dailyBonusReceived) {
         return new LoginResponseDTO(
                 String.valueOf(account.getId()),
-                account.getLogin(),
+                account.getEmail(),
                 account.getNickname(),
                 account.getBalance(),
                 accessToken,

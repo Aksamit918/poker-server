@@ -1,7 +1,6 @@
 package com.poker.persistence.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,11 +18,11 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false, updatable = false, length = 20)
-    private String login;
+    @Column(name = "google_id", unique = true, length = 255)
+    private String googleId;
 
-    @Column(name= "password_hash", nullable = false, length = 255)
-    private String password;
+    @Column(unique = true, nullable = false, updatable = false, length = 255)
+    private String email;
 
     @Column(nullable = false, length = 20)
     private String nickname;
@@ -50,9 +49,8 @@ public class Account {
     @Column(name = "biggest_pot", nullable = false)
     private Long biggestPot = 0L;
 
-    public Account(String login, String password, String nickname) {
-        this.login =  login;
-        this.password = password;
+    public Account(String email, String nickname) {
+        this.email = email;
         this.nickname = nickname;
         balance = 5000L;
     }

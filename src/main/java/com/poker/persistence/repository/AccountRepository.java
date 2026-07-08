@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AccountRepository extends JpaRepository<Account, Long> {
-    Optional<Account> findByLogin(String login);
+    Optional<Account> findByGoogleId(String googleId);
 
     List<Account> findByNicknameContaining(String partOfName);
 }

@@ -4,6 +4,7 @@ import com.poker.dto.*;
 import com.poker.model.Table;
 import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
+import com.poker.service.GoogleAuthService;
 import com.poker.service.TableManager;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +26,15 @@ public class AuthController {
 
     private final AccountService accountService;
     private final TableManager tableManager;
+    private final GoogleAuthService googleAuthService;
 
     private String getAuthenticatedUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
+
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
             return null;
         }
+
         return String.valueOf(auth.getPrincipal()).trim();
     }
 
@@ -44,14 +48,15 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/register")
-    public LoginResponseDTO register(@RequestBody RegisterRequest request) {
-        return accountService.register(request.login(), request.password(), request.nickname());
-    }
+    @PostMapping("/google")
+    public LoginResponseDTO googleLogin(@RequestBody GoogleLoginRequest request) {
+        GoogleAuthService.GoogleUser googleUser = googleAuthService.verifyToken(request.token());
 
-    @PostMapping("/login")
-    public LoginResponseDTO login(@RequestBody LoginRequest request) {
-        return accountService.login(request.login(), request.password());
+        return accountService.authenticateWithGoogle(
+                googleUser.getGoogleId(),
+                googleUser.getEmail(),
+                googleUser.getName()
+        );
     }
 
     @PostMapping("/refresh")
@@ -81,17 +86,6 @@ public class AuthController {
     public Account changeNickname(@PathVariable Long id, @RequestBody ChangeNicknameRequest request) {
         verifyUserIdMatch(id);
         return accountService.changeNickname(id, request.newNickname());
-    }
-
-    @PatchMapping("/{id}/password")
-    public ResponseEntity<Map<String, String>> changePassword(@PathVariable Long id, @Valid @RequestBody ChangePasswordRequest request) {
-        verifyUserIdMatch(id);
-        accountService.changePassword(id, request.oldPassword(), request.newPassword());
-
-        return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Password updated successfully"
-        ));
     }
 
     @DeleteMapping("/{id}")

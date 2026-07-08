@@ -43,7 +43,6 @@ build/
 Thumbs.db
 .DS_Store
 
-# Credentials
-
+# Local Dev Environment
 .env
-application.properties.origin
+docker-compose-dev.yml

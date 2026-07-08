@@ -49,7 +49,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/login", "/api/auth/login/",
+                                "/api/auth/email", "/api/auth/email/",
                                 "/api/auth/register", "/api/auth/register/",
                                 "/api/auth/refresh", "/api/auth/refresh/",
                                 "/ws-poker/**", "/error"

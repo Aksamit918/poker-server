@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
@@ -20,11 +22,12 @@ public class RefreshToken {
 
     @ManyToOne
     @JoinColumn(name = "account_id", referencedColumnName = "id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Account account;
 
     @Column(nullable = false, unique = true)
     private String token;
 
-    @Column(nullable = false)
+    @Column(name = "expiry_date", nullable = false)
     private Instant expiryDate;
 }
