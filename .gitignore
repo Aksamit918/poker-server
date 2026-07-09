@@ -46,3 +46,4 @@ Thumbs.db
 # Local Dev Environment
 .env
 docker-compose-dev.yml
+avatars/

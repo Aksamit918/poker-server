@@ -27,6 +27,9 @@ public class Account {
     @Column(nullable = false, length = 20)
     private String nickname;
 
+    @Column(name = "avatar_filename", nullable = true)
+    private String avatarFilename;
+
     @Column(name = "wallet_balance", nullable = false)
     private Long balance;
 

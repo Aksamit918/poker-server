@@ -10,7 +10,8 @@ public record LoginResponseDTO(
         @JsonProperty("wallet_balance") long walletBalance,
         @JsonProperty("access_token")  String accessToken,
         @JsonProperty("refresh_token") String refreshToken,
-        @JsonProperty("daily_bonus_received") boolean dailyBonusReceived
+        @JsonProperty("daily_bonus_received") boolean dailyBonusReceived,
+        @JsonProperty("avatar_filename") String avatarFilename
 ) {
     public static LoginResponseDTO fromAccount(Account account, String accessToken,
                                                String refreshToken, boolean dailyBonusReceived) {
@@ -21,7 +22,8 @@ public record LoginResponseDTO(
                 account.getBalance(),
                 accessToken,
                 refreshToken,
-                dailyBonusReceived
+                dailyBonusReceived,
+                account.getAvatarFilename()
         );
     }
 }

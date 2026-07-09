@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:17-alpine
@@ -28,12 +26,17 @@ services:
       - redis
     environment:
       - DB_HOST=db
-      - DB_NAME=${DB_NAME:-poker_db}
-      - DB_USER=${DB_USER:-postgres}
+      - DB_NAME=${DB_NAME}      # (Removed the default fallbacks here for consistency with db above)
+      - DB_USER=${DB_USER}      
       - DB_PASSWORD=${DB_PASSWORD}
       - REDIS_HOST=redis
       - SPRING_PROFILES_ACTIVE=prod
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - POKER_AVATARS_DIR=${POKER_AVATARS_DIR}
+      - POKER_PUBLIC_URL=${POKER_PUBLIC_URL}
+    # ADD THIS VOLUME MAPPING HERE:
+    volumes:
+      - ./avatars:${POKER_AVATARS_DIR:-/app/avatars}
 
 volumes:
   db_data:

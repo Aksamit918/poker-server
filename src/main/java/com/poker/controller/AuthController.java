@@ -13,9 +13,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -27,6 +33,12 @@ public class AuthController {
     private final AccountService accountService;
     private final TableManager tableManager;
     private final GoogleAuthService googleAuthService;
+
+    @org.springframework.beans.factory.annotation.Value("${poker.avatars.directory}")
+    private String uploadDir;
+
+    @org.springframework.beans.factory.annotation.Value("${poker.public.url}")
+    private String publicUrl;
 
     private String getAuthenticatedUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -57,6 +69,58 @@ public class AuthController {
                 googleUser.getEmail(),
                 googleUser.getName()
         );
+    }
+
+    @PostMapping("/avatar")
+    public ResponseEntity<?> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        String userIdStr = getAuthenticatedUserId();
+        if (userIdStr == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
+        }
+        Long userId = Long.parseLong(userIdStr);
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("File is empty");
+        }
+
+        try {
+            String contentType = file.getContentType();
+            if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png"))) {
+                return ResponseEntity.badRequest().body("Only JPEG and PNG images are allowed");
+            }
+
+            String extension = contentType.equals("image/jpeg") ? ".jpg" : ".png";
+            String filename = userId + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
+
+            Path targetPath = Paths.get(uploadDir).resolve(filename);
+            Files.createDirectories(targetPath.getParent());
+            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+            Account account = accountService.findById(userId);
+
+            if (account.getAvatarFilename() != null) {
+                try {
+                    Files.deleteIfExists(Paths.get(uploadDir).resolve(account.getAvatarFilename()));
+                } catch (Exception e) {
+                    log.warn("Failed to delete old avatar file: {}", account.getAvatarFilename());
+                }
+            }
+
+            account.setAvatarFilename(filename);
+            accountService.changeNickname(userId, account.getNickname());
+
+            String publicAvatarUrl = publicUrl + "/avatars/" + filename;
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "avatar_url", publicAvatarUrl,
+                    "avatar_filename", filename
+            ));
+
+        } catch (Exception e) {
+            log.error("Failed to upload avatar for user {}", userId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload image");
+        }
     }
 
     @PostMapping("/refresh")
