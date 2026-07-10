@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
 @RequestMapping("/api/tables")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class TableController {
 

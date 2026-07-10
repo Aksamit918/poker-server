@@ -12,6 +12,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -166,6 +167,7 @@ public class TableManager implements TableEventListener {
         }
     }
 
+    @Transactional
     public TableDetailsDTO createTable(String name, long smallBlind, long bigBlind, int minPlayersNum,
                                        int maxPlayersNum, String userId, long chips, String rawPasscode) {
         if (activePlayers.containsKey(userId)) {
@@ -185,23 +187,43 @@ public class TableManager implements TableEventListener {
             hashedPasscode = passwordEncoder.encode(rawPasscode);
         }
 
+        Long uId = Long.parseLong(userId);
+        Account account = accountService.findById(uId);
+
+        Long minBuyIn = smallBlind * 10;
+        Long maxBuyIn = bigBlind * 100;
+
         GameTable dbTable = new GameTable(
-                tableUuid, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
-                isPrivate, hashedPasscode, false, null
+                tableUuid,
+                name,
+                smallBlind,
+                bigBlind,
+                minPlayersNum,
+                maxPlayersNum,
+                minBuyIn,
+                maxBuyIn,
+                isPrivate,
+                hashedPasscode,
+                false,
+                account
         );
         tableRepository.save(dbTable);
 
         Table newTable = new Table(
-                tableIdStr, name, smallBlind, bigBlind, minPlayersNum, maxPlayersNum,
-                isPrivate, hashedPasscode, this
+                tableIdStr,
+                name,
+                smallBlind,
+                bigBlind,
+                minPlayersNum,
+                maxPlayersNum,
+                isPrivate,
+                hashedPasscode,
+                this
         );
-
         tables.put(tableIdStr, newTable);
 
         try {
-            Long uId = Long.parseLong(userId);
             accountService.withdrawFromWallet(uId, chips, tableIdStr, TransactionType.BUY_IN);
-            Account account = accountService.findById(uId);
             int seatIndex = newTable.getFreeSeat();
 
             Player creator = new Player(
@@ -218,7 +240,7 @@ public class TableManager implements TableEventListener {
 
         } catch (Exception e) {
             tables.remove(tableIdStr);
-            tableRepository.delete(dbTable);
+
             throw e;
         }
 

@@ -38,10 +38,16 @@ public class GameTable {
     @Column(name = "max_players", nullable = false)
     private Integer maxPlayers;
 
+    @Column(name = "min_buy_in", nullable = false)
+    private Long minBuyIn;
+
+    @Column(name = "max_buy_in", nullable = false)
+    private Long maxBuyIn;
+
     @Column(name = "is_private", nullable = false)
     private Boolean isPrivate;
 
-    @Column(name = "passcode", length = 50)
+    @Column(name = "passcode", length = 60)
     private String passcode;
 
     @Column(name = "is_system", nullable = false)
@@ -55,13 +61,16 @@ public class GameTable {
     @Column(name = "created_at", updatable = false, nullable = false)
     private OffsetDateTime createdAt;
 
-    public GameTable(UUID id, String name, long smallBlind, long bigBlind, int minPlayers, int maxPlayers, boolean isPrivate, String passcode, boolean isSystem, Account creator) {
+    public GameTable(UUID id, String name, long smallBlind, long bigBlind, int minPlayers, int maxPlayers,
+                     long minBuyIn, long maxBuyIn, boolean isPrivate, String passcode, boolean isSystem, Account creator) {
         this.id = id;
         this.name = name;
         this.smallBlind = smallBlind;
         this.bigBlind = bigBlind;
         this.minPlayers = minPlayers;
         this.maxPlayers = maxPlayers;
+        this.minBuyIn = minBuyIn;
+        this.maxBuyIn = maxBuyIn;
         this.isPrivate = isPrivate;
         this.passcode = passcode;
         this.isSystem = isSystem;
