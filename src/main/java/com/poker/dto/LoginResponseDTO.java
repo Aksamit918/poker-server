@@ -11,10 +11,11 @@ public record LoginResponseDTO(
         @JsonProperty("access_token")  String accessToken,
         @JsonProperty("refresh_token") String refreshToken,
         @JsonProperty("daily_bonus_received") boolean dailyBonusReceived,
-        @JsonProperty("avatar_filename") String avatarFilename
+        @JsonProperty("avatar_filename") String avatarFilename,
+        @JsonProperty("is_new_user") boolean isNewUser
 ) {
     public static LoginResponseDTO fromAccount(Account account, String accessToken,
-                                               String refreshToken, boolean dailyBonusReceived) {
+                                               String refreshToken, boolean dailyBonusReceived, boolean isNewUser) {
         return new LoginResponseDTO(
                 String.valueOf(account.getId()),
                 account.getEmail(),
@@ -23,7 +24,8 @@ public record LoginResponseDTO(
                 accessToken,
                 refreshToken,
                 dailyBonusReceived,
-                account.getAvatarFilename()
+                account.getAvatarFilename(),
+                isNewUser
         );
     }
 }

@@ -49,9 +49,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/email", "/api/auth/email/",
-                                "/api/auth/register", "/api/auth/register/",
+                                "/api/auth/google", "/api/auth/google/",
                                 "/api/auth/refresh", "/api/auth/refresh/",
+                                "/avatars/**",
                                 "/ws-poker/**", "/error"
                         ).permitAll()
                         .anyRequest().authenticated()

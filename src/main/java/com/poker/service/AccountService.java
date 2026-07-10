@@ -95,9 +95,11 @@ public class AccountService {
 
     @Transactional
     public LoginResponseDTO authenticateWithGoogle(String googleId, String email, String name) {
+        boolean isNewUser = false;
         Account account = accountRepository.findByGoogleId(googleId).orElse(null);
 
         if (account == null) {
+            isNewUser = true;
             String safeNickname = (name == null || name.isBlank()) ? "Player_" + UUID.randomUUID().toString().substring(0, 5) : name;
             if (safeNickname.length() > 20) {
                 safeNickname = safeNickname.substring(0, 20);
@@ -129,7 +131,7 @@ public class AccountService {
         boolean bonusReceived = processDailyBonus(account);
         accountRepository.save(account);
 
-        return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), bonusReceived);
+        return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), bonusReceived, isNewUser);
     }
 
     public void logout(Long userId) {

@@ -31,7 +31,7 @@ public class Account {
     private String avatarFilename;
 
     @Column(name = "wallet_balance", nullable = false)
-    private Long balance;
+    private Long balance = 0L;
 
     @Column(name = "last_bonus_at", nullable = true)
     private OffsetDateTime lastBonusAt;

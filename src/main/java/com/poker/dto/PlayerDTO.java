@@ -18,7 +18,8 @@ public record PlayerDTO(
         @JsonProperty("is_active") boolean active,
         @JsonProperty("round_contribution") long roundContribution,
         @JsonProperty("amount_to_call") long amountToCall,
-        @JsonProperty("sit_out_deadline") long sitOutDeadline
+        @JsonProperty("sit_out_deadline") long sitOutDeadline,
+        @JsonProperty("avatar_filename") String avatarFilename
 ) {
     public static PlayerDTO fromPlayer(Player player, long currentMaxBet, boolean isOwner, boolean isShowdown) {
         long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
@@ -49,7 +50,8 @@ public record PlayerDTO(
                 player.canAct(),
                 player.getRoundContribution(),
                 toCall,
-                player.getSitOutDeadline()
+                player.getSitOutDeadline(),
+                player.getAvatarFilename()
         );
     }
 }

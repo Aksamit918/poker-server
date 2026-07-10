@@ -26,7 +26,7 @@ services:
       - redis
     environment:
       - DB_HOST=db
-      - DB_NAME=${DB_NAME}      # (Removed the default fallbacks here for consistency with db above)
+      - DB_NAME=${DB_NAME}      
       - DB_USER=${DB_USER}      
       - DB_PASSWORD=${DB_PASSWORD}
       - REDIS_HOST=redis
@@ -34,7 +34,6 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - POKER_AVATARS_DIR=${POKER_AVATARS_DIR}
       - POKER_PUBLIC_URL=${POKER_PUBLIC_URL}
-    # ADD THIS VOLUME MAPPING HERE:
     volumes:
       - ./avatars:${POKER_AVATARS_DIR:-/app/avatars}
 

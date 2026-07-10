@@ -147,9 +147,16 @@ public class AuthController {
     }
 
     @PatchMapping("/{id}/nickname")
-    public Account changeNickname(@PathVariable Long id, @RequestBody ChangeNicknameRequest request) {
+    public ResponseEntity<Map<String, String>> changeNickname(@PathVariable Long id, @RequestBody ChangeNicknameRequest request) {
         verifyUserIdMatch(id);
-        return accountService.changeNickname(id, request.newNickname());
+
+        Account updatedAccount = accountService.changeNickname(id, request.newNickname());
+
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Nickname updated successfully",
+                "nickname", updatedAccount.getNickname()
+        ));
     }
 
     @DeleteMapping("/{id}")

@@ -205,7 +205,10 @@ public class TableManager implements TableEventListener {
             int seatIndex = newTable.getFreeSeat();
 
             Player creator = new Player(
-                    userId, account.getNickname(), seatIndex,
+                    userId,
+                    account.getNickname(),
+                    account.getAvatarFilename(),
+                    seatIndex,
                     new java.util.concurrent.atomic.AtomicLong(account.getBalance()),
                     new java.util.concurrent.atomic.AtomicLong(chips)
             );

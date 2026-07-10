@@ -96,8 +96,12 @@ public class TableController {
         Account account = accountService.findById(userId);
 
         Player newPlayer = new Player(
-                authUserId, account.getNickname(), table.getFreeSeat(),
-                new AtomicLong(account.getBalance()), new AtomicLong(userBuyIn)
+                authUserId,
+                account.getNickname(),
+                account.getAvatarFilename(),
+                table.getFreeSeat(),
+                new AtomicLong(account.getBalance()),
+                new AtomicLong(userBuyIn)
         );
 
         table.joinTable(newPlayer);

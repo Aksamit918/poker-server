@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class Player {
     private final String userId;
     private String name;
+    private String avatarFilename;
     private int seatIndex;
     private volatile PlayerStatus status = PlayerStatus.WAITING;
     private AtomicLong chips;
@@ -20,15 +21,20 @@ public class Player {
     private int missedTurns = 0;
     private long sitOutDeadline = 0L;
 
-    public Player(String userId, String name, int seatIndex, AtomicLong remainingWallet, AtomicLong chips) {
+    public Player(String userId, String name, String avatarFilename, int seatIndex,
+                  AtomicLong remainingWallet, AtomicLong chips) {
         this.userId = userId;
         this.name = name;
+        this.avatarFilename = avatarFilename;
         this.seatIndex = seatIndex;
         this.walletBalance = remainingWallet;
         this.chips = chips;
         hand = new CopyOnWriteArrayList<>();
     }
 
+    public String getAvatarFilename() {
+        return avatarFilename;
+    }
     public void addCard(Card card) {
         hand.add(card);
     }
