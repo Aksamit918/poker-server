@@ -32,10 +32,26 @@ services:
       - REDIS_HOST=redis
       - SPRING_PROFILES_ACTIVE=prod
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
       - POKER_AVATARS_DIR=${POKER_AVATARS_DIR}
       - POKER_PUBLIC_URL=${POKER_PUBLIC_URL}
     volumes:
       - ./avatars:${POKER_AVATARS_DIR:-/app/avatars}
+
+  frontend:
+    build: ../frontend
+    container_name: poker_frontend_container
+    restart: always
+    ports:
+      - "80:8000"
+    depends_on:
+      - app
+    environment:
+      - JAVA_HOST=app:8080
+      - SESSION_KEY=poker_super_secret_session_key_12345
 
 volumes:
   db_data:
