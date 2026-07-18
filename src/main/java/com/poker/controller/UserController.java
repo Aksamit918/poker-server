@@ -23,13 +23,13 @@ public class UserController {
 
     @GetMapping("/{id}/stats")
     public UserStatsDTO getUserStats(@PathVariable Long id) {
-        String authId = getAuthenticatedUserId();
-
-        if (!authId.equals(String.valueOf(id))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-        }
+        String authenticatedPrincipal = getAuthenticatedUserId();
 
         Account account = accountService.findById(id);
+
+        if (!authenticatedPrincipal.equals(account.getNickname())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied to view this profile");
+        }
 
         return UserStatsDTO.fromAccount(account);
     }
