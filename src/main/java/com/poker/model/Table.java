@@ -48,13 +48,15 @@ public class Table {
     private List<ShowdownPayoutDTO> lastShowdownPayouts = new ArrayList<>();
 
     public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
-                 boolean isPrivate, String passcode, TableEventListener eventListener) {
+                 long minBuyIn, boolean isPrivate, String passcode, TableEventListener eventListener) {
         this.id = id;
         this.name = name;
         this.isPrivate = isPrivate;
         this.passcode = passcode;
         this.MIN_PLAYERS = MIN_PLAYERS;
         this.MAX_PLAYERS = MAX_PLAYERS;
+        this.minBuyIn = minBuyIn;
+        this.maxBuyIn = bigBlindBet * 100;
         this.players = new CopyOnWriteArrayList<>();
         this.deck = new Deck();
         this.communityCards = new CopyOnWriteArrayList<>();
@@ -62,8 +64,6 @@ public class Table {
         this.state = TableStates.WAITING_FOR_PLAYERS;
         this.smallBlindBet = smallBlindBet;
         this.bigBlindBet = bigBlindBet;
-        this.minBuyIn = bigBlindBet * 10;
-        this.maxBuyIn = bigBlindBet * 100;
         this.dealerIdx = -1;
         this.activePlayerIdx = -1;
         this.eventListener = eventListener;

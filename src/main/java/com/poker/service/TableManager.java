@@ -2,6 +2,7 @@ package com.poker.service;
 
 import com.poker.dto.TableDetailsDTO;
 import com.poker.dto.events.PlayerStatusEvent;
+import com.poker.exception.ChipAmountException;
 import com.poker.exception.IllegalTableStateException;
 import com.poker.model.*;
 import com.poker.persistence.entity.Account;
@@ -190,8 +191,13 @@ public class TableManager implements TableEventListener {
         Long uId = Long.parseLong(userId);
         Account account = accountService.findById(uId);
 
-        Long minBuyIn = smallBlind * 10;
-        Long maxBuyIn = bigBlind * 100;
+        long minBuyIn = chips;
+
+        long maxBuyIn = bigBlind * 100;
+
+        if (minBuyIn > maxBuyIn) {
+            throw new ChipAmountException("error.chips.max.buyin", maxBuyIn);
+        }
 
         GameTable dbTable = new GameTable(
                 tableUuid,
@@ -216,6 +222,7 @@ public class TableManager implements TableEventListener {
                 bigBlind,
                 minPlayersNum,
                 maxPlayersNum,
+                minBuyIn,
                 isPrivate,
                 hashedPasscode,
                 this
@@ -240,7 +247,6 @@ public class TableManager implements TableEventListener {
 
         } catch (Exception e) {
             tables.remove(tableIdStr);
-
             throw e;
         }
 
@@ -274,6 +280,7 @@ public class TableManager implements TableEventListener {
                     dbTable.getBigBlind(),
                     dbTable.getMinPlayers(),
                     dbTable.getMaxPlayers(),
+                    dbTable.getMinBuyIn(),
                     dbTable.getIsPrivate(),
                     dbTable.getPasscode(),
                     this
