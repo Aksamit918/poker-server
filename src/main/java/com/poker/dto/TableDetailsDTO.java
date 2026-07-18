@@ -15,8 +15,10 @@ public record TableDetailsDTO(
 
         @JsonProperty("big_blind") long bigBlind,
 
-        @JsonProperty("min_buy_in") String minBuyIn,
-        @JsonProperty("max_buy_in") String maxBuyIn,
+        @JsonProperty("min_buy_in") long minBuyIn,
+        @JsonProperty("max_buy_in") long maxBuyIn,
+        @JsonProperty("min_buy_in_formatted") String minBuyInFmt,
+        @JsonProperty("max_buy_in_formatted") String maxBuyInFmt,
 
         @JsonProperty("pot") long pot,
         @JsonProperty("dealer_seat") int dealerIdx,
@@ -55,6 +57,8 @@ public record TableDetailsDTO(
                 table.getName(),
                 table.getBigBlindBet(),
 
+                table.getMinBuyIn(),
+                table.getMaxBuyIn(),
                 FormatUtils.format(table.getMinBuyIn()),
                 FormatUtils.format(table.getMaxBuyIn()),
 
