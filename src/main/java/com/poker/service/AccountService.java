@@ -17,8 +17,10 @@ import com.poker.persistence.repository.TransactionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -145,6 +147,11 @@ public class AccountService {
     public Account findById(Long id) {
         return accountRepository.findById(id)
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
+    }
+
+    public Account findByGoogleId(String googleId) {
+        return accountRepository.findByGoogleId(googleId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
     }
 
     @Transactional
