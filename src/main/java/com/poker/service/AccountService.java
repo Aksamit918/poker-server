@@ -149,11 +149,6 @@ public class AccountService {
                 .orElseThrow(() -> new AccountNotFoundException("User not found"));
     }
 
-    public Account findByGoogleId(String googleId) {
-        return accountRepository.findByGoogleId(googleId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
-    }
-
     @Transactional
     public Account changeNickname(Long id, String newNickname) {
         Account account = accountRepository.findById(id)

@@ -22,14 +22,14 @@ public class UserController {
     }
 
     @GetMapping("/{id}/stats")
-    public UserStatsDTO getUserStats(@PathVariable String id) {
+    public UserStatsDTO getUserStats(@PathVariable Long id) {
         String authId = getAuthenticatedUserId();
 
-        if (!authId.equals(id)) {
+        if (!authId.equals(String.valueOf(id))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
-        Account account = accountService.findByGoogleId(id);
+        Account account = accountService.findById(id);
 
         return UserStatsDTO.fromAccount(account);
     }
