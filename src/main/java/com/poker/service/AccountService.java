@@ -136,6 +136,7 @@ public class AccountService {
         return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), bonusReceived, isNewUser);
     }
 
+    @Transactional
     public void logout(Long userId) {
         Account account = accountRepository.findById(userId).orElse(null);
         if (account != null) {
