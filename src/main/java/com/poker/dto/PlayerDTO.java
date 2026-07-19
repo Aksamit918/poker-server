@@ -19,7 +19,7 @@ public record PlayerDTO(
         @JsonProperty("round_contribution") long roundContribution,
         @JsonProperty("amount_to_call") long amountToCall,
         @JsonProperty("sit_out_deadline") long sitOutDeadline,
-        @JsonProperty("avatar_filename") String avatarFilename
+        @JsonProperty("avatar_url") String avatarUrl
 ) {
     public static PlayerDTO fromPlayer(Player player, long currentMaxBet, boolean isOwner, boolean isShowdown) {
         long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
@@ -40,6 +40,15 @@ public record PlayerDTO(
             displayStatus = "SITTING_OUT";
         }
 
+        String fullAvatarUrl = null;
+        if (player.getAvatarFilename() != null && !player.getAvatarFilename().isEmpty()) {
+            if (player.getAvatarFilename().startsWith("http")) {
+                fullAvatarUrl = player.getAvatarFilename();
+            } else {
+                fullAvatarUrl = "/static/avatars/" + player.getAvatarFilename();
+            }
+        }
+
         return new PlayerDTO(
                 player.getUserId(),
                 player.getName(),
@@ -51,7 +60,7 @@ public record PlayerDTO(
                 player.getRoundContribution(),
                 toCall,
                 player.getSitOutDeadline(),
-                player.getAvatarFilename()
+                fullAvatarUrl
         );
     }
 }
