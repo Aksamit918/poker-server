@@ -8,12 +8,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${POKER_AVATARS_DIR:/app/avatars}")
-    private String avatarsDir;
+    @Value("${poker.avatars.directory}")
+    private String uploadDir;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/static/avatars/**")
-                .addResourceLocations("file:" + avatarsDir + "/");
+        registry.addResourceHandler("/avatars/**")
+                .addResourceLocations("file:" + uploadDir + "/");
     }
 }
