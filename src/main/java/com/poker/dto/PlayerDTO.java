@@ -45,7 +45,7 @@ public record PlayerDTO(
             if (player.getAvatarFilename().startsWith("http")) {
                 fullAvatarUrl = player.getAvatarFilename();
             } else {
-                fullAvatarUrl = "/static/avatars/" + player.getAvatarFilename();
+                fullAvatarUrl = "/avatars/" + player.getAvatarFilename();
             }
         }
 
