@@ -47,3 +47,4 @@ Thumbs.db
 .env
 docker-compose-dev.yml
 avatars/
+application-dev.properties

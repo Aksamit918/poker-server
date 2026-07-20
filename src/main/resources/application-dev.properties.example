@@ -1,0 +1,9 @@
+# Example Configuration - Fill this out and rename to application-dev.properties
+spring.datasource.url=jdbc:postgresql://localhost:5434/YOUR_DB
+spring.datasource.username=YOUR_USER
+spring.datasource.password=YOUR_PASSWORD
+
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+
+poker.avatars.directory=./avatars
