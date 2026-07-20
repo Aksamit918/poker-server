@@ -24,6 +24,7 @@ public class Table {
     private static final int START_GAME_DELAY = 3;
     private static final int PREMATURE_END_DELAY = 4;
     private static final int KICK_OUT_OF_MONEY_DELAY = 5;
+    private long turnStartTime;
     private final String id;
     private String name;
     private final boolean isPrivate;
@@ -793,6 +794,8 @@ public class Table {
         stopTimer();
         this.isTransitioning = false;
 
+        this.turnStartTime = System.currentTimeMillis();
+
         long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
         if (activeCount < 1 || state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) {
             return;
@@ -839,6 +842,9 @@ public class Table {
                 }
             }
         }, TURN_TIMEOUT, TimeUnit.SECONDS);
+    }
+    public long getTurnStartTime() {
+        return turnStartTime;
     }
     private void cleanupTable() {
         synchronized (lock) {
