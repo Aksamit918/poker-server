@@ -137,6 +137,11 @@ public class AccountService {
     }
 
     @Transactional
+    public void saveAccount(Account account) {
+        accountRepository.save(account);
+    }
+
+    @Transactional
     public void logout(Long userId) {
         Account account = accountRepository.findById(userId).orElse(null);
         if (account != null) {

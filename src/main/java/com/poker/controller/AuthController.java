@@ -106,7 +106,7 @@ public class AuthController {
             }
 
             account.setAvatarFilename(filename);
-            accountService.changeNickname(userId, account.getNickname());
+            accountService.saveAccount(account);
 
             String publicAvatarUrl = publicUrl + "/avatars/" + filename;
 
