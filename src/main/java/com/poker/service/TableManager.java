@@ -150,21 +150,26 @@ public class TableManager implements TableEventListener {
 
     public void scheduleDisconnectKick(String userId) {
         if (isPlayerActive(userId)) {
+            cancelDisconnectTask(userId);
+
             ScheduledFuture<?> task = scheduler.schedule(() -> {
                 if (isPlayerActive(userId)) {
                     forceKickPlayer(userId);
-                    log.info("User {} was auto-kicked after 10s grace period.", userId);
+                    log.info("User {} was auto-kicked after {}s grace period.", userId, DISCONNECT_GRACE_PERIOD);
                 }
                 disconnectTasks.remove(userId);
             }, DISCONNECT_GRACE_PERIOD, TimeUnit.SECONDS);
+
             disconnectTasks.put(userId, task);
+            log.info("Started {}s disconnect grace period timer for User {}", DISCONNECT_GRACE_PERIOD, userId);
         }
     }
 
     public void cancelDisconnectTask(String userId) {
         ScheduledFuture<?> task = disconnectTasks.remove(userId);
-        if (task != null) {
+        if (task != null && !task.isDone()) {
             task.cancel(false);
+            log.info("Cancelled disconnect grace period for User {}", userId);
         }
     }
 

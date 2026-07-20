@@ -114,14 +114,20 @@ public class TableController {
         String authUserId = getAuthenticatedUserId();
 
         Table table = tableManager.getTable(id);
+
         if (table == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "error.table.not.found");
+            return ResponseEntity.ok(Map.of("status", "success", "message", "Table no longer exists. Player is free."));
         }
 
-        Player player = table.findPlayerById(authUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Optional<Player> playerOpt = table.findPlayerById(authUserId);
 
+        if (playerOpt.isEmpty()) {
+            return ResponseEntity.ok(Map.of("status", "success", "message", "Player has already left the table"));
+        }
+
+        Player player = playerOpt.get();
         table.leaveTable(player);
+
         return ResponseEntity.ok(Map.of("status", "success", "message", "Player left the table"));
     }
 
