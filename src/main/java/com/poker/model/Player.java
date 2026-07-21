@@ -47,7 +47,7 @@ public class Player {
         }
         chips.updateAndGet(current -> {
             if (current < amount) {
-                throw new ChipAmountException("Not enough chips. You must use ALL_IN action.");
+                throw new ChipAmountException("error.chips.insufficient.allin");
             }
             return current - amount;
         });

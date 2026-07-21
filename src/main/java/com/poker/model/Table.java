@@ -43,6 +43,7 @@ public class Table {
     private Deck deck;
     private final List<Card> communityCards;
     private AtomicLong pot;
+    private long lastRaiseStep = 0;
     private long currentMaxBet = 0;
     private final long smallBlindBet;
     private final long bigBlindBet;
@@ -130,6 +131,8 @@ public class Table {
                 if (bbPlayer.getChips().get() == 0) bbPlayer.setStatus(PlayerStatus.ALL_IN);
 
                 this.currentMaxBet = bigBlindBet;
+                this.lastRaiseStep = bigBlindBet;
+
                 for (Player p : players) {
                     if (p != sbPlayer && p != bbPlayer) {
                         p.setRoundContribution(0);
@@ -271,27 +274,31 @@ public class Table {
         updateStatusAfterBet(player);
     }
     private void processRaise(Player player, long newMaxBet) {
-        if (newMaxBet <= currentMaxBet) {
-            throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
-        }
-
+        long minAllowedRaise = this.currentMaxBet + this.lastRaiseStep;
         long amountToRaise = newMaxBet - player.getRoundContribution();
+        boolean isAllIn = amountToRaise >= player.getChips().get();
+
+        if (!isAllIn && newMaxBet < minAllowedRaise) {
+            throw new IllegalRaiseException("error.illegal.raise.too.low", minAllowedRaise);
+        }
 
         if (amountToRaise <= 0) {
-            throw new IllegalRaiseException("error.illegal.raise", currentMaxBet);
+            throw new IllegalRaiseException("error.illegal.raise.invalid", currentMaxBet);
         }
 
-        if (amountToRaise >= player.getChips().get()) {
+        if (isAllIn) {
             processAllIn(player);
             return;
         }
+
+        this.lastRaiseStep = newMaxBet - this.currentMaxBet;
+        this.currentMaxBet = newMaxBet;
 
         long actualPaid = player.bet(amountToRaise);
         pot.addAndGet(actualPaid);
         player.addToRoundContribution(actualPaid);
         player.addToTotalInHand(actualPaid);
         updateStatusAfterBet(player);
-        this.currentMaxBet = newMaxBet;
 
         for (Player p : players) {
             if (p != player &&
@@ -318,7 +325,14 @@ public class Table {
         player.setStatus(PlayerStatus.ALL_IN);
 
         if (player.getRoundContribution() > currentMaxBet) {
+
+            long raisedAmount = player.getRoundContribution() - currentMaxBet;
+            if (raisedAmount >= this.lastRaiseStep) {
+                this.lastRaiseStep = raisedAmount;
+            }
+
             this.currentMaxBet = player.getRoundContribution();
+
             for (Player p : players) {
                 if (p != player &&
                         p.getStatus() != PlayerStatus.FOLDED &&
@@ -436,6 +450,8 @@ public class Table {
                                 endBettingRound();
                             } else {
                                 this.currentMaxBet = 0;
+                                this.lastRaiseStep = bigBlindBet;
+
                                 for (Player p : players) {
                                     p.setRoundContribution(0);
                                     if (p.getStatus() != PlayerStatus.FOLDED &&
@@ -445,9 +461,12 @@ public class Table {
                                         p.setStatus(PlayerStatus.ACTIVE);
                                     }
                                 }
+
                                 this.activePlayerIdx = dealerIdx;
+
                                 advanceTurn();
                                 startTimer();
+
                                 if (eventListener != null) {
                                     eventListener.onTableUpdate(this);
                                 }
@@ -676,16 +695,16 @@ public class Table {
     public void joinTable(Player player) {
         synchronized (lock) {
             if (players.stream().anyMatch(p -> p.getUserId().equals(player.getUserId()))) {
-                throw new PlayerAlreadyJoinedException("User already joined");
+                throw new PlayerAlreadyJoinedException("error.player.already.joined");
             }
             if (players.size() >= MAX_PLAYERS) {
                 throw new TableFullException("Table is full");
             }
             long buyIn = player.getChips().get();
             if (buyIn < minBuyIn) {
-                throw new ChipAmountException("Insufficient buy-in. Minimum required: " + minBuyIn);
+                throw new ChipAmountException("error.chips.min.buyin", minBuyIn);
             } else if (buyIn > maxBuyIn) {
-                throw new ChipAmountException("Buy-in exceeds limit. Maximum allowed: " + maxBuyIn);
+                throw new ChipAmountException("error.chips.max.buyin", maxBuyIn);
             }
 
             player.setStatus(PlayerStatus.WAITING);

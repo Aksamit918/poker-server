@@ -22,7 +22,7 @@ public class Deck {
     }
     public Card drawCard() {
         if (cards.isEmpty()) {
-            throw new EmptyDeckException("Empty deck");
+            throw new EmptyDeckException("error.deck.empty");
         }
         return cards.remove(0);
     }

@@ -1,5 +1,6 @@
 package com.poker.exception;
 
+import com.poker.dto.ErrorResponseDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.NoSuchMessageException;
@@ -11,9 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 @Slf4j
 @ControllerAdvice
@@ -25,13 +24,14 @@ public class GlobalExceptionHandler {
         this.messageSource = messageSource;
     }
 
-    private ResponseEntity<Map<String, String>> createErrorResponse(String message, HttpStatus status) {
+    private ResponseEntity<ErrorResponseDTO> createErrorResponse(Exception ex, String messageKey, Object[] args, HttpStatus status, Locale locale) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.valueOf("application/json;charset=UTF-8"));
 
-        Map<String, String> response = new HashMap<>();
-        response.put("error", message);
+        String localizedMessage = getLocalizedMessage(messageKey, args, locale);
+        String errorType = ex.getClass().getSimpleName();
 
+        ErrorResponseDTO response = new ErrorResponseDTO(errorType, localizedMessage);
         return new ResponseEntity<>(response, headers, status);
     }
 
@@ -51,62 +51,43 @@ public class GlobalExceptionHandler {
             ChipAmountException.class,
             InvalidInputException.class
     })
-    public ResponseEntity<Map<String, String>> handleBusinessLogicErrors(RuntimeException ex, Locale locale) {
-        System.out.println("[DEBUG] GlobalExceptionHandler поймал бизнес-ошибку: " + ex.getClass().getSimpleName());
-        System.out.println("[DEBUG] Сообщение ошибки: " + ex.getMessage());
-
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
-
-        System.out.println("[DEBUG] Отправляем клиенту 400 Bad Request");
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ErrorResponseDTO> handleBusinessLogicErrors(PokerException ex, Locale locale) {
+        log.debug("Business Error: {} - {}", ex.getClass().getSimpleName(), ex.getMessage());
+        return createErrorResponse(ex, ex.getMessage(), ex.getArgs(), HttpStatus.BAD_REQUEST, locale);
     }
-
 
     @ExceptionHandler({
             NotYourTurnException.class,
             IllegalTableStateException.class,
             PlayerAlreadyJoinedException.class,
-            TableFullException.class,
-            GameInProgressException.class,
-            DuplicateResourceException.class
+            TableFullException.class
     })
-    public ResponseEntity<Map<String, String>> handleConflictErrors(RuntimeException ex, Locale locale) {
-        String message = getLocalizedMessage(ex.getMessage(), null, locale);
-        return createErrorResponse(message, HttpStatus.CONFLICT); // 409
-    }
-
-    @ExceptionHandler({PlayerNotFoundException.class, AccountNotFoundException.class})
-    public ResponseEntity<Map<String, String>> handleNotFoundErrors(RuntimeException ex, Locale locale) {
-        String message = getLocalizedMessage(ex.getMessage(), null, locale);
-        return createErrorResponse(message, HttpStatus.NOT_FOUND); // 404
+    public ResponseEntity<ErrorResponseDTO> handleConflictErrors(PokerException ex, Locale locale) {
+        return createErrorResponse(ex, ex.getMessage(), ex.getArgs(), HttpStatus.CONFLICT, locale);
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<Map<String, String>> handleAuthErrors(InvalidCredentialsException ex, Locale locale) {
-        String message = getLocalizedMessage(ex.getMessage(), null, locale);
-        return createErrorResponse(message, HttpStatus.UNAUTHORIZED);
+    public ResponseEntity<ErrorResponseDTO> handleAuthErrors(InvalidCredentialsException ex, Locale locale) {
+        return createErrorResponse(ex, ex.getMessage(), ex.getArgs(), HttpStatus.UNAUTHORIZED, locale);
     }
 
-    @ExceptionHandler({EmptyDeckException.class})
-    public ResponseEntity<Map<String, String>> handleForbiddenErrors(RuntimeException ex, Locale locale) {
-        String message = getLocalizedMessage(ex.getMessage(), null, locale);
-        return createErrorResponse(message, HttpStatus.FORBIDDEN); // 403
+    @ExceptionHandler(EmptyDeckException.class)
+    public ResponseEntity<ErrorResponseDTO> handleSystemErrors(EmptyDeckException ex, Locale locale) {
+        log.error("CRITICAL SYSTEM ERROR: ", ex);
+        return createErrorResponse(ex, "error.internal.server.error", null, HttpStatus.INTERNAL_SERVER_ERROR, locale);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationErrors(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ErrorResponseDTO> handleValidationErrors(MethodArgumentNotValidException ex) {
         String firstError = ex.getBindingResult().getAllErrors().get(0).getDefaultMessage();
-        return createErrorResponse(firstError, HttpStatus.BAD_REQUEST);
+        ErrorResponseDTO response = new ErrorResponseDTO("ValidationException", firstError);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleAllOtherExceptions(Exception ex) {
-        System.out.println("[DEBUG] !!! КРИТИЧЕСКАЯ НЕУЧТЕННАЯ ОШИБКА !!!");
-        ex.printStackTrace();
-
-        Map<String, String> response = new HashMap<>();
-        response.put("error", "Внутренняя ошибка сервера: " + ex.getMessage());
+    public ResponseEntity<ErrorResponseDTO> handleAllOtherExceptions(Exception ex) {
+        log.error("!!! UNACCOUNTED-FOR ERROR !!!", ex);
+        ErrorResponseDTO response = new ErrorResponseDTO("InternalServerError", "Внутренняя ошибка сервера");
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

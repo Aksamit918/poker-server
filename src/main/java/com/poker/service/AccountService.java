@@ -17,10 +17,8 @@ import com.poker.persistence.repository.TransactionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -152,13 +150,13 @@ public class AccountService {
     @Transactional(readOnly = true)
     public Account findById(Long id) {
         return accountRepository.findById(id)
-                .orElseThrow(() -> new AccountNotFoundException("User not found"));
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
     }
 
     @Transactional
     public Account changeNickname(Long id, String newNickname) {
         Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found"));
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
 
         if (newNickname == null || newNickname.isBlank() || newNickname.length() > 20) {
             throw new InvalidInputException("error.nickname.range", 1, 20);
@@ -194,7 +192,7 @@ public class AccountService {
     @Transactional
     public void withdrawFromWallet(Long accountId, long amount, String tableId, TransactionType type) {
         if (amount <= 0) throw new InvalidInputException("error.amount.positive");
-        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("User not found"));
+        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
         if (account.getBalance() < amount) throw new ChipAmountException("error.chips.insufficient", amount, account.getBalance());
 
         GameTable table = resolveTable(tableId);
@@ -208,7 +206,7 @@ public class AccountService {
     @Transactional
     public void depositToWallet(Long accountId, long amount, String tableId, TransactionType type) {
         if (amount < 0) throw new InvalidInputException("error.amount.deposit.positive", amount);
-        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("User not found"));
+        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
 
         GameTable table = resolveTable(tableId);
         account.setBalance(account.getBalance() + amount);

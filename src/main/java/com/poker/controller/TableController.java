@@ -88,7 +88,7 @@ public class TableController {
 
         long userBuyIn = request.chips();
         if (userBuyIn < table.getMinBuyIn() || userBuyIn > table.getMaxBuyIn()) {
-            throw new ChipAmountException("error.chips.amount.invalid");
+            throw new ChipAmountException("error.chips.amount.invalid", table.getMinBuyIn(), table.getMaxBuyIn());
         }
 
         accountService.withdrawFromWallet(userId, userBuyIn, id, TransactionType.BUY_IN);
@@ -146,10 +146,10 @@ public class TableController {
         long amount = request.amount();
 
         if (player.getChips().get() + amount > table.getMaxBuyIn()) {
-            throw new ChipAmountException("Rebuy amount exceeds the maximum table limit: " + table.getMaxBuyIn());
+            throw new ChipAmountException("error.chips.max.rebuy", table.getMaxBuyIn());
         }
         if (player.getChips().get() + amount < table.getBigBlindBet()) {
-            throw new ChipAmountException("Total stack after rebuy must meet the minimum requirement of " + table.getBigBlindBet());
+            throw new ChipAmountException("error.chips.min.rebuy", table.getBigBlindBet());
         }
 
         accountService.withdrawFromWallet(Long.parseLong(authUserId), amount, id, TransactionType.REBUY);
