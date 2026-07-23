@@ -113,6 +113,8 @@ public class TableController {
     public ResponseEntity<Map<String, String>> leaveTable(@PathVariable String id) {
         String authUserId = getAuthenticatedUserId();
 
+        tableManager.cancelDisconnectTask(authUserId);
+
         Table table = tableManager.getTable(id);
 
         if (table == null) {
