@@ -19,9 +19,10 @@ public record PlayerDTO(
         @JsonProperty("round_contribution") long roundContribution,
         @JsonProperty("amount_to_call") long amountToCall,
         @JsonProperty("sit_out_deadline") long sitOutDeadline,
-        @JsonProperty("avatar_url") String avatarUrl
+        @JsonProperty("avatar_url") String avatarUrl,
+        @JsonProperty("is_dealer") boolean isDealer
 ) {
-    public static PlayerDTO fromPlayer(Player player, long currentMaxBet, boolean isOwner, boolean isShowdown) {
+    public static PlayerDTO fromPlayer(Player player, long currentMaxBet, boolean isOwner, boolean isShowdown, boolean isDealer) {
         long toCall = Math.max(0, currentMaxBet - player.getRoundContribution());
         if (toCall > player.getChips().get()) {
             toCall = player.getChips().get();
@@ -60,7 +61,8 @@ public record PlayerDTO(
                 player.getRoundContribution(),
                 toCall,
                 player.getSitOutDeadline(),
-                fullAvatarUrl
+                fullAvatarUrl,
+                isDealer
         );
     }
 }

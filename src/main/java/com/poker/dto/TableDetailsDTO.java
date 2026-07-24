@@ -43,7 +43,9 @@ public record TableDetailsDTO(
         List<PlayerDTO> playerDTOs = table.getPlayers().stream()
                 .map(p -> {
                     boolean isOwner = requestingUserId != null && requestingUserId.equals(p.getUserId());
-                    return PlayerDTO.fromPlayer(p, currentMax, isOwner, isShowdown);
+                    boolean isDealer = (p.getSeatIndex() == table.getDealerIdx());
+
+                    return PlayerDTO.fromPlayer(p, currentMax, isOwner, isShowdown, isDealer);
                 })
                 .toList();
 
