@@ -1,9 +1,9 @@
 package com.poker.config;
 
 import com.poker.service.AccountService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -22,10 +22,13 @@ import java.util.List;
 @Slf4j
 @Configuration
 @EnableWebSocketMessageBroker
-@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final AccountService accountService;
+
+    public WebSocketConfig(@Lazy AccountService accountService) {
+        this.accountService = accountService;
+    }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
