@@ -106,6 +106,8 @@ public class TableManager implements TableEventListener {
                     log.error("Error trying to delete empty custom table: {}", tableId, e);
                 }
             }
+
+            broadcastLobbyUpdate();
         }
     }
 
@@ -123,6 +125,8 @@ public class TableManager implements TableEventListener {
         if (table != null) {
             eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
         }
+
+        broadcastLobbyUpdate();
     }
 
     @Override
@@ -255,6 +259,8 @@ public class TableManager implements TableEventListener {
             throw e;
         }
 
+        broadcastLobbyUpdate();
+
         return TableDetailsDTO.createTableDetailsDTO(newTable, userId);
     }
 
@@ -335,5 +341,12 @@ public class TableManager implements TableEventListener {
 
             accountService.updatePlayerStats(userId, isWinner, amountWon);
         }
+    }
+
+    public void broadcastLobbyUpdate() {
+        List<com.poker.dto.TableDTO> currentLobby = getAllTables().stream()
+                .map(com.poker.dto.TableDTO::createTableDTO)
+                .toList();
+        eventPublisher.publishFullLobbyUpdate(currentLobby);
     }
 }

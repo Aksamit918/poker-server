@@ -1,16 +1,22 @@
 package com.poker.service;
 
+import com.poker.dto.TableDTO;
 import com.poker.dto.TableDetailsDTO;
 import com.poker.dto.events.*;
 import com.poker.util.RedisTopics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class GameEventPublisher {
 
+    private final SimpMessagingTemplate messagingTemplate;
     private final RedisTemplate<String, Object> redisTemplate;
 
     public void publishTableUpdate(TableDetailsDTO tableDetails) {
@@ -26,6 +32,14 @@ public class GameEventPublisher {
     public void publishPlayerStatus(PlayerStatusEvent event) {
         String topic = RedisTopics.getTableTopic(event.tableId());
         redisTemplate.convertAndSend(topic, event);
+    }
+
+    public void publishFullLobbyUpdate(List<TableDTO> tables) {
+        Map<String, Object> payload = Map.of(
+                "event_type", "LOBBY_UPDATE",
+                "tables", tables
+        );
+        messagingTemplate.convertAndSend("/topic/lobby", payload);
     }
 
     public void publishLobbyUpdate(String tableId, int currentPlayers, int maxPlayers) {
