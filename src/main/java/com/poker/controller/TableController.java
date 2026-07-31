@@ -209,4 +209,15 @@ public class TableController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Table not found");
         }
     }
+
+    @GetMapping("/{id}/events")
+    public ResponseEntity<List<Object>> getRecentEvents(@PathVariable String id, @RequestParam long since) {
+        Table table = tableManager.getTable(id);
+        if (table == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        List<Object> missedEvents = table.getEventsSince(since);
+        return ResponseEntity.ok(missedEvents);
+    }
 }

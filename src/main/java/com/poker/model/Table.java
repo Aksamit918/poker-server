@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class Table {
+    private final java.util.Queue<BufferedEvent> recentEvents = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static final long EVENT_TTL_MS = 60000;
     private final Object lock = new Object();
     private final TableEventListener eventListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -1077,4 +1079,18 @@ public class Table {
     public List<ShowdownPayoutDTO> getLastShowdownPayouts() {
         return lastShowdownPayouts;
     }
+
+    public void bufferEvent(Object event) {
+        long now = System.currentTimeMillis();
+        recentEvents.offer(new BufferedEvent(now, event));
+        recentEvents.removeIf(e -> (now - e.timestamp()) > EVENT_TTL_MS);
+    }
+    public java.util.List<Object> getEventsSince(long timestamp) {
+        return recentEvents.stream()
+                .filter(e -> e.timestamp() > timestamp)
+                .map(BufferedEvent::eventPayload)
+                .toList();
+    }
+
+    public record BufferedEvent(long timestamp, Object eventPayload) {}
 }

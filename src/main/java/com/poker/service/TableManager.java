@@ -60,6 +60,26 @@ public class TableManager implements TableEventListener {
     }
 
     @Override
+    public void onPlayerAction(String tableId, Player player, ActionType type, long amount, long pot) {
+        var actionEvent = new com.poker.dto.events.PlayerActionEvent(
+                "PLAYER_ACTION",
+                tableId,
+                player.getSeatIndex(),
+                type,
+                amount,
+                com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
+                pot
+        );
+
+        Table table = tables.get(tableId);
+        if (table != null) {
+            table.bufferEvent(actionEvent);
+        }
+
+        eventPublisher.publishPlayerAction(actionEvent);
+    }
+
+    @Override
     public void onPlayerLeave(String userId, long chips, int seatIndex) {
         String tableId = activePlayers.get(userId);
         if (tableId == null) return;
@@ -74,17 +94,24 @@ public class TableManager implements TableEventListener {
 
         }
 
-        eventPublisher.publishPlayerStatus(new PlayerStatusEvent(
+        var statusEvent = new PlayerStatusEvent(
                 "PLAYER_STATUS",
                 tableId,
                 seatIndex,
                 "LEFT",
                 realNickname
-        ));
+        );
+
+        // ДОБАВЛЯЕМ В БУФЕР
+        Table table = tables.get(tableId);
+        if (table != null) {
+            table.bufferEvent(statusEvent);
+        }
+
+        eventPublisher.publishPlayerStatus(statusEvent);
 
         unregisterPlayer(userId);
 
-        Table table = tables.get(tableId);
         if (table != null) {
             eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
 
@@ -113,33 +140,25 @@ public class TableManager implements TableEventListener {
 
     @Override
     public void onPlayerJoin(String tableId, Player player) {
-        eventPublisher.publishPlayerStatus(new PlayerStatusEvent(
+        var statusEvent = new PlayerStatusEvent(
                 "PLAYER_STATUS",
                 tableId,
                 player.getSeatIndex(),
                 "JOINED",
                 player.getName()
-        ));
+        );
 
         Table table = tables.get(tableId);
+
         if (table != null) {
+            table.bufferEvent(statusEvent);
+            eventPublisher.publishPlayerStatus(statusEvent);
             eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
+        } else {
+            eventPublisher.publishPlayerStatus(statusEvent);
         }
 
         broadcastLobbyUpdate();
-    }
-
-    @Override
-    public void onPlayerAction(String tableId, Player player, ActionType type, long amount, long pot) {
-        eventPublisher.publishPlayerAction(new com.poker.dto.events.PlayerActionEvent(
-                "PLAYER_ACTION",
-                tableId,
-                player.getSeatIndex(),
-                type,
-                amount,
-                com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
-                pot
-        ));
     }
 
     public void forceKickPlayer(String userId) {

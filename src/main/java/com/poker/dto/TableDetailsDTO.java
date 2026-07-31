@@ -23,7 +23,7 @@ public record TableDetailsDTO(
         @JsonProperty("pot") long pot,
         @JsonProperty("dealer_seat") int dealerIdx,
         @JsonProperty("current_turn_seat") int activePlayerIdx,
-        @JsonProperty("time_to_act_ms") long timeToActMs,
+        @JsonProperty("time_remaining_ms") long timeRemainingMs,
         @JsonProperty("community_cards") List<String> communityCards,
         @JsonProperty("players") List<PlayerDTO> players,
         @JsonProperty("state") String state,
@@ -54,11 +54,11 @@ public record TableDetailsDTO(
             showdownDetails = new ShowdownDetailsDTO(table.getLastShowdownPayouts());
         }
 
-        long timeToActMs = 0;
+        long timeRemainingMs = 0;
         if (table.getActivePlayerIdx() != -1 && !isShowdown && table.getState() != TableStates.WAITING_FOR_PLAYERS) {
             long totalTurnTime = 15000;
             long timeElapsed = System.currentTimeMillis() - table.getTurnStartTime();
-            timeToActMs = Math.max(0, totalTurnTime - timeElapsed);
+            timeRemainingMs = Math.max(0, totalTurnTime - timeElapsed);
         }
 
         return new TableDetailsDTO(
@@ -75,7 +75,7 @@ public record TableDetailsDTO(
                 pot,
                 table.getDealerIdx(),
                 table.getActivePlayerIdx(),
-                timeToActMs,
+                timeRemainingMs,
                 cardStrings,
                 playerDTOs,
                 state,
