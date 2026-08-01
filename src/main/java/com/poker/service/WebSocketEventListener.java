@@ -1,6 +1,6 @@
 package com.poker.service;
 
-import com.poker.dto.TableDetailsDTO;
+import com.poker.dto.events.TableDetailsDTO;
 import com.poker.model.Table;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,14 +81,13 @@ public class WebSocketEventListener {
 
                 Table table = tableManager.getTable(tableId);
                 if (table != null) {
-                    TableDetailsDTO snapshot = TableDetailsDTO.createTableDetailsDTO(table, userId);
+                    TableDetailsDTO snapshot = TableDetailsDTO.createTableDetailsDTO(table, userId, true);
 
                     messagingTemplate.convertAndSendToUser(
                             userId,
                             "/queue/table_snapshot",
                             snapshot
                     );
-                    log.info("Sent TABLE_UPDATE snapshot to user {}", userId);
                 }
             }
         }

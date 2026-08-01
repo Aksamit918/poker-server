@@ -1,6 +1,6 @@
 package com.poker.service;
 
-import com.poker.dto.OnlineUpdateDTO;
+import com.poker.dto.events.OnlineUpdateDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;

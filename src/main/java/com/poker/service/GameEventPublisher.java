@@ -1,7 +1,7 @@
 package com.poker.service;
 
 import com.poker.dto.TableDTO;
-import com.poker.dto.TableDetailsDTO;
+import com.poker.dto.events.TableDetailsDTO;
 import com.poker.dto.events.*;
 import com.poker.util.RedisTopics;
 import lombok.RequiredArgsConstructor;
@@ -55,5 +55,10 @@ public class GameEventPublisher {
     public void publishWalletUpdate(String userId, long newBalance, String reason) {
         WalletUpdateEvent event = new WalletUpdateEvent(userId, newBalance, reason);
         redisTemplate.convertAndSend("poker:wallet:" + userId, event);
+    }
+
+    public void publishStreetEnd(StreetEndDTO event) {
+        String topic = RedisTopics.getTableTopic(event.tableId());
+        redisTemplate.convertAndSend(topic, event);
     }
 }

@@ -1,6 +1,7 @@
 package com.poker.controller;
 
 import com.poker.dto.*;
+import com.poker.dto.events.TableDetailsDTO;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.IllegalTableStateException;
 import com.poker.model.Player;

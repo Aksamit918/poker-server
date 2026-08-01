@@ -1,6 +1,7 @@
 package com.poker.service;
 
-import com.poker.dto.TableDetailsDTO;
+import com.poker.dto.events.StreetEndDTO;
+import com.poker.dto.events.TableDetailsDTO;
 import com.poker.dto.events.PlayerStatusEvent;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.IllegalTableStateException;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Service
@@ -172,6 +172,15 @@ public class TableManager implements TableEventListener {
         }
 
         broadcastLobbyUpdate();
+    }
+
+    @Override
+    public void onStreetEnd(StreetEndDTO event) {
+        Table table = tables.get(event.tableId());
+        if (table != null) {
+            table.bufferEvent(event);
+        }
+        eventPublisher.publishStreetEnd(event);
     }
 
     public void forceKickPlayer(String userId) {

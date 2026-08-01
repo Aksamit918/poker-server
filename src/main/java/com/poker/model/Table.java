@@ -1,6 +1,7 @@
 package com.poker.model;
 
 import com.poker.dto.ShowdownPayoutDTO;
+import com.poker.dto.events.StreetEndDTO;
 import com.poker.exception.TableFullException;
 import com.poker.exception.*;
 import com.poker.util.TableEventListener;
@@ -420,11 +421,39 @@ public class Table {
                     synchronized (lock) {
                         this.isTransitioning = false;
 
+                        String previousState = this.state.name();
+                        List<StreetEndDTO.PlayerContributionDTO> contributions = players.stream()
+                                .filter(p -> p.getRoundContribution() > 0)
+                                .map(p -> new StreetEndDTO.PlayerContributionDTO(p.getUserId(), p.getRoundContribution()))
+                                .toList();
+
                         switch (this.state) {
                             case PRE_FLOP -> { setTableState(TableStates.FLOP); dealFlop(); }
                             case FLOP -> { setTableState(TableStates.TURN); dealTurn(); }
                             case TURN -> { setTableState(TableStates.RIVER); dealRiver(); }
                             case RIVER -> setTableState(TableStates.SHOWDOWN);
+                        }
+
+                        StreetEndDTO streetEndEvent = StreetEndDTO.createStreetEndDTO(this, previousState, contributions);
+                        if (eventListener != null) {
+                            eventListener.onStreetEnd(streetEndEvent);
+                        }
+
+                        this.currentMaxBet = 0;
+                        this.lastRaiseStep = bigBlindBet;
+
+                        for (Player p : players) {
+                            p.setRoundContribution(0); // RESET TO 0
+                            if (p.getStatus() != PlayerStatus.FOLDED &&
+                                    p.getStatus() != PlayerStatus.ALL_IN &&
+                                    p.getStatus() != PlayerStatus.WAITING &&
+                                    p.getStatus() != PlayerStatus.SITTING_OUT) {
+                                p.setStatus(PlayerStatus.ACTIVE);
+                            }
+                        }
+
+                        if (eventListener != null) {
+                            eventListener.onTableUpdate(this);
                         }
 
                         if (this.state == TableStates.SHOWDOWN) {
@@ -446,26 +475,9 @@ public class Table {
                                     .count();
 
                             if (stillCanBet < 2) {
-                                if (eventListener != null) {
-                                    eventListener.onTableUpdate(this);
-                                }
                                 endBettingRound();
                             } else {
-                                this.currentMaxBet = 0;
-                                this.lastRaiseStep = bigBlindBet;
-
-                                for (Player p : players) {
-                                    p.setRoundContribution(0);
-                                    if (p.getStatus() != PlayerStatus.FOLDED &&
-                                            p.getStatus() != PlayerStatus.ALL_IN &&
-                                            p.getStatus() != PlayerStatus.WAITING &&
-                                            p.getStatus() != PlayerStatus.SITTING_OUT) {
-                                        p.setStatus(PlayerStatus.ACTIVE);
-                                    }
-                                }
-
                                 this.activePlayerIdx = dealerIdx;
-
                                 advanceTurn();
                                 startTimer();
 

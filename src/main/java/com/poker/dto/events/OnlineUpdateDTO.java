@@ -1,4 +1,4 @@
-package com.poker.dto;
+package com.poker.dto.events;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

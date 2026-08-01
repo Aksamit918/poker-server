@@ -1,6 +1,8 @@
-package com.poker.dto;
+package com.poker.dto.events;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.poker.dto.PlayerDTO;
+import com.poker.dto.ShowdownDetailsDTO;
 import com.poker.model.Card;
 import com.poker.model.Table;
 import com.poker.model.TableStates;
@@ -26,12 +28,18 @@ public record TableDetailsDTO(
 
         @JsonProperty("time_to_act_ms") long timeToActMs,
 
+        @JsonProperty("skip_animations") Boolean skipAnimations,
+
         @JsonProperty("community_cards") List<String> communityCards,
         @JsonProperty("players") List<PlayerDTO> players,
         @JsonProperty("state") String state,
         @JsonProperty("showdown_details") ShowdownDetailsDTO showdownDetails
 ) {
     public static TableDetailsDTO createTableDetailsDTO(Table table, String requestingUserId) {
+        return createTableDetailsDTO(table, requestingUserId, false);
+    }
+
+    public static TableDetailsDTO createTableDetailsDTO(Table table, String requestingUserId, boolean isSnapshot) {
         long pot = table.getPot();
         long currentMax = table.getCurrentMaxBet();
         String state = table.getState().name();
@@ -78,6 +86,7 @@ public record TableDetailsDTO(
                 table.getDealerIdx(),
                 table.getActivePlayerIdx(),
                 timeToActMs,
+                isSnapshot,
                 cardStrings,
                 playerDTOs,
                 state,
