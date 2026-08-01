@@ -30,10 +30,14 @@ public record PlayerDTO(
 
         List<String> cards = Collections.emptyList();
 
-        if (isOwner || isShowdown) {
-            cards = player.getHand().stream()
-                    .map(Card::getShortName)
-                    .toList();
+        if (!player.getHand().isEmpty()) {
+            if (isOwner || isShowdown) {
+                cards = player.getHand().stream()
+                        .map(Card::getShortName)
+                        .toList();
+            } else {
+                cards = List.of("card_back", "card_back");
+            }
         }
 
         String displayStatus = player.getStatus().name();
