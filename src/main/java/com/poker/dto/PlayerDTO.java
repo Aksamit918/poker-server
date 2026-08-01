@@ -33,7 +33,7 @@ public record PlayerDTO(
         if (player.getHand() != null && !player.getHand().isEmpty()) {
             if (isOwner || isShowdown) {
                 cards = player.getHand().stream()
-                        .map(Card::getShortName)
+                        .map(c -> c.getShortName().toUpperCase())
                         .toList();
             } else {
                 cards = List.of("card_back", "card_back");

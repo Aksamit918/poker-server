@@ -443,7 +443,7 @@ public class Table {
                         this.lastRaiseStep = bigBlindBet;
 
                         for (Player p : players) {
-                            p.setRoundContribution(0); // RESET TO 0
+                            p.setRoundContribution(0);
                             if (p.getStatus() != PlayerStatus.FOLDED &&
                                     p.getStatus() != PlayerStatus.ALL_IN &&
                                     p.getStatus() != PlayerStatus.WAITING &&
@@ -664,8 +664,8 @@ public class Table {
                             w.getUserId(),
                             winAmount,
                             winRes.getCategory().name(),
-                            winRes.getRankCards().stream().map(Card::getShortName).toList(),
-                            needKickersInJson ? winRes.getKickerCards().stream().map(Card::getShortName).toList() : Collections.emptyList(),
+                            winRes.getRankCards().stream().map(c -> c.getShortName().toUpperCase()).toList(),
+                            needKickersInJson ? winRes.getKickerCards().stream().map(c -> c.getShortName().toUpperCase()).toList() : Collections.emptyList(),
                             potLayerIndex > 0,
                             isKickerWinner
                     );
@@ -1078,7 +1078,7 @@ public class Table {
     }
     public List<Player> getPlayers() {
         synchronized(lock) {
-            return List.copyOf(players); // Return a safe snapshot
+            return List.copyOf(players);
         }
     }
     public Optional<Player> findPlayerById(String userId) {

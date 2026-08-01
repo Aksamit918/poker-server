@@ -45,7 +45,7 @@ public record TableDetailsDTO(
         String state = table.getState().name();
 
         List<String> cardStrings = table.getCommunityCards().stream()
-                .map(Card::getShortName)
+                .map(c -> c.getShortName().toUpperCase())
                 .toList();
 
         boolean isShowdown = table.getState() == TableStates.SHOWDOWN;
@@ -61,7 +61,7 @@ public record TableDetailsDTO(
 
         ShowdownDetailsDTO showdownDetails = null;
         if (table.getState() == TableStates.SHOWDOWN || table.getState() == TableStates.CLEANUP) {
-            showdownDetails = new ShowdownDetailsDTO(table.getLastShowdownPayouts());
+            showdownDetails = ShowdownDetailsDTO.create(table.getLastShowdownPayouts());
         }
 
         long timeToActMs = 0;
