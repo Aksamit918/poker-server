@@ -81,13 +81,17 @@ public class WebSocketEventListener {
 
                 Table table = tableManager.getTable(tableId);
                 if (table != null) {
-                    TableDetailsDTO snapshot = TableDetailsDTO.createTableDetailsDTO(table, userId, true);
-
-                    messagingTemplate.convertAndSendToUser(
-                            userId,
-                            "/queue/table_snapshot",
-                            snapshot
-                    );
+                    try {
+                        TableDetailsDTO snapshot = TableDetailsDTO.createTableDetailsDTO(table, userId, true);
+                        messagingTemplate.convertAndSendToUser(
+                                userId,
+                                "/queue/table_snapshot",
+                                snapshot
+                        );
+                        log.info("Sent TABLE_UPDATE snapshot to user {}", userId);
+                    } catch (Exception e) {
+                        log.error("Failed to build or send snapshot for table {} to user {}", tableId, userId, e);
+                    }
                 }
             }
         }
