@@ -59,6 +59,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/google", "/api/auth/google/",
                                 "/api/auth/refresh", "/api/auth/refresh/",
+                                "/api/health/**", 
                                 "/avatars/**",
                                 "/ws-poker/**", "/error"
                         ).permitAll()
