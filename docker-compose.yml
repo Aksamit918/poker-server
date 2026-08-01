@@ -74,8 +74,10 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - /root/poker/backend/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /root/poker/backend/ssl:/etc/nginx/ssl:ro
       - ./avatars:/usr/share/nginx/avatars:ro
       - /root/poker/frontend/static:/usr/share/nginx/static:ro
     depends_on:
