@@ -5,18 +5,18 @@ import com.poker.dto.TableDetailsDTO;
 import com.poker.dto.events.*;
 import com.poker.util.RedisTopics;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GameEventPublisher {
 
-    private final SimpMessagingTemplate messagingTemplate;
     private final RedisTemplate<String, Object> redisTemplate;
 
     public void publishTableUpdate(TableDetailsDTO tableDetails) {
@@ -39,12 +39,17 @@ public class GameEventPublisher {
                 "event_type", "LOBBY_UPDATE",
                 "tables", tables
         );
-        messagingTemplate.convertAndSend("/topic/lobby", payload);
+        redisTemplate.convertAndSend("poker:lobby", payload);
     }
 
     public void publishLobbyUpdate(String tableId, int currentPlayers, int maxPlayers) {
-        LobbyUpdateEvent event = new LobbyUpdateEvent("LOBBY_UPDATE", tableId, currentPlayers, maxPlayers);
-        redisTemplate.convertAndSend("poker:lobby", event);
+        LobbyTableUpdateDTO formA = new LobbyTableUpdateDTO(
+                "LOBBY_UPDATE",
+                tableId,
+                currentPlayers,
+                maxPlayers
+        );
+        redisTemplate.convertAndSend("poker:lobby", formA);
     }
 
     public void publishWalletUpdate(String userId, long newBalance, String reason) {

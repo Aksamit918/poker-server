@@ -1080,6 +1080,17 @@ public class Table {
         return lastShowdownPayouts;
     }
 
+    public long getTimeToActMs() {
+        if (activePlayerIdx == -1 || isTransitioning || state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) {
+            return 0;
+        }
+
+        long elapsedMs = System.currentTimeMillis() - this.turnStartTime;
+        long remainingMs = (TURN_TIMEOUT * 1000L) - elapsedMs;
+
+        return Math.max(0, remainingMs);
+    }
+
     public void bufferEvent(Object event) {
         long now = System.currentTimeMillis();
         recentEvents.offer(new BufferedEvent(now, event));

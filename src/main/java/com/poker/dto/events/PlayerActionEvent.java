@@ -10,5 +10,8 @@ public record PlayerActionEvent(
         @JsonProperty("action_type") ActionType actionType,
         long amount,
         @JsonProperty("player_state") PlayerPublicStateDTO playerState,
-        @JsonProperty("total_pot") long totalPot
+        @JsonProperty("total_pot") long totalPot,
+
+        @JsonProperty("current_turn_seat") int currentTurnSeat,
+        @JsonProperty("time_to_act_ms") long timeToActMs
 ) {}

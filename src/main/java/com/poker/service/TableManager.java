@@ -61,6 +61,19 @@ public class TableManager implements TableEventListener {
 
     @Override
     public void onPlayerAction(String tableId, Player player, ActionType type, long amount, long pot) {
+        Table table = tables.get(tableId);
+
+        long timeToActMs = 0;
+        int currentTurnSeat = -1;
+
+        if (table != null) {
+            currentTurnSeat = table.getActivePlayerIdx();
+            if (currentTurnSeat != -1 && table.getState() != TableStates.SHOWDOWN) {
+                long elapsed = System.currentTimeMillis() - table.getTurnStartTime();
+                timeToActMs = Math.max(0, 15000 - elapsed);
+            }
+        }
+
         var actionEvent = new com.poker.dto.events.PlayerActionEvent(
                 "PLAYER_ACTION",
                 tableId,
@@ -68,10 +81,11 @@ public class TableManager implements TableEventListener {
                 type,
                 amount,
                 com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
-                pot
+                pot,
+                currentTurnSeat,
+                timeToActMs
         );
 
-        Table table = tables.get(tableId);
         if (table != null) {
             table.bufferEvent(actionEvent);
         }
@@ -102,7 +116,6 @@ public class TableManager implements TableEventListener {
                 realNickname
         );
 
-        // ДОБАВЛЯЕМ В БУФЕР
         Table table = tables.get(tableId);
         if (table != null) {
             table.bufferEvent(statusEvent);

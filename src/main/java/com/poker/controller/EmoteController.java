@@ -1,6 +1,6 @@
 package com.poker.controller;
 
-import com.poker.dto.EmotePayloadDTO;
+import com.poker.dto.events.EmotePayloadDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;

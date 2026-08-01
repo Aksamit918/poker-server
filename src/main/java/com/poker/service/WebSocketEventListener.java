@@ -8,10 +8,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -20,6 +23,24 @@ public class WebSocketEventListener {
 
     private final TableManager tableManager;
     private final SimpMessagingTemplate messagingTemplate;
+
+    private final Set<String> onlineUsers = ConcurrentHashMap.newKeySet();
+
+    @EventListener
+    public void handleWebSocketConnectListener(SessionConnectEvent event) {
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
+
+        if (sessionAttributes != null) {
+            String userId = (String) sessionAttributes.get("userId");
+            if (userId != null) {
+                boolean isNewUser = onlineUsers.add(userId);
+                if (isNewUser) {
+                    broadcastOnlineCount();
+                }
+            }
+        }
+    }
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
@@ -31,6 +52,9 @@ public class WebSocketEventListener {
             if (userId != null) {
                 log.info("WebSocket disconnect for user: {}. Scheduling grace period kick...", userId);
                 tableManager.scheduleDisconnectKick(userId);
+
+                onlineUsers.remove(userId);
+                broadcastOnlineCount();
             }
         }
     }
@@ -44,8 +68,12 @@ public class WebSocketEventListener {
             String userId = (String) sessionAttributes.get("userId");
             String destination = headerAccessor.getDestination();
 
-            if (userId != null && destination != null && destination.startsWith("/topic/table/")) {
 
+            if (userId != null && destination != null && destination.equals("/topic/lobby")) {
+                broadcastOnlineCount();
+            }
+
+            if (userId != null && destination != null && destination.startsWith("/topic/table/")) {
                 log.info("User {} subscribed to {}. Canceling grace period kick...", userId, destination);
                 tableManager.cancelDisconnectTask(userId);
 
@@ -64,5 +92,13 @@ public class WebSocketEventListener {
                 }
             }
         }
+    }
+    
+    private void broadcastOnlineCount() {
+        Map<String, Object> payload = Map.of(
+                "event_type", "ONLINE_UPDATE",
+                "online_count", onlineUsers.size()
+        );
+        messagingTemplate.convertAndSend("/topic/lobby", payload);
     }
 }
