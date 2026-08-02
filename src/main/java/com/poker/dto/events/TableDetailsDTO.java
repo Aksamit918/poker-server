@@ -15,6 +15,8 @@ public record TableDetailsDTO(
         @JsonProperty("table_id") String tableId,
         @JsonProperty("table_name") String name,
 
+        @JsonProperty("max_players") int maxPlayers,
+
         @JsonProperty("big_blind") long bigBlind,
 
         @JsonProperty("min_buy_in") long minBuyIn,
@@ -75,6 +77,7 @@ public record TableDetailsDTO(
                 "TABLE_UPDATE",
                 table.getId(),
                 table.getName(),
+                table.getMaxPlayers(),
                 table.getBigBlindBet(),
 
                 table.getMinBuyIn(),
