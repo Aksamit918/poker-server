@@ -1,5 +1,6 @@
 package com.poker.service;
 
+import com.poker.dto.TableDTO;
 import com.poker.dto.events.TableDetailsDTO;
 import com.poker.model.Table;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,9 +70,25 @@ public class WebSocketEventListener {
             String userId = (String) sessionAttributes.get("userId");
             String destination = headerAccessor.getDestination();
 
-
             if (userId != null && destination != null && destination.equals("/topic/lobby")) {
                 broadcastOnlineCount();
+
+                List<TableDTO> currentLobby = tableManager.getAllTables().stream()
+                        .map(com.poker.dto.TableDTO::createTableDTO)
+                        .toList();
+
+                Map<String, Object> lobbySnapshot = Map.of(
+                        "event_type", "LOBBY_UPDATE",
+                        "tables", currentLobby
+                );
+
+                messagingTemplate.convertAndSendToUser(
+                        userId,
+                        "/queue/lobby_snapshot",
+                        lobbySnapshot
+                );
+
+                messagingTemplate.convertAndSend("/topic/lobby", lobbySnapshot);
             }
 
             if (userId != null && destination != null && destination.startsWith("/topic/table/")) {

@@ -1049,9 +1049,7 @@ public class Table {
         return MAX_PLAYERS;
     }
     public List<Card> getCommunityCards() {
-        synchronized (lock) {
-            return List.copyOf(communityCards);
-        }
+        return List.copyOf(communityCards);
     }
     public List<Player> getPlayers() {
         synchronized(lock) {
@@ -1059,11 +1057,9 @@ public class Table {
         }
     }
     public Optional<Player> findPlayerById(String userId) {
-        synchronized (lock) {
-            return players.stream()
-                    .filter(p -> p.getUserId().equals(userId))
-                    .findFirst();
-        }
+        return players.stream()
+                .filter(p -> p.getUserId().equals(userId))
+                .findFirst();
     }
     public List<ShowdownPayoutDTO> getLastShowdownPayouts() {
         return lastShowdownPayouts;
