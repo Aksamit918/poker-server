@@ -40,9 +40,27 @@ public class WebSocketEventListener implements ExecutorChannelInterceptor {
 
     private final Map<String, Set<String>> sessionsByUser = new ConcurrentHashMap<>();
 
+    @Override
+    public Message<?> preSend(Message<?> message, MessageChannel channel) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (accessor == null || accessor.getCommand() == null) {
+            return message;
+        }
+
+        StompCommand command = accessor.getCommand();
+        if (StompCommand.CONNECT.equals(command) || StompCommand.STOMP.equals(command)) {
+            onStompConnect(accessor);
+        }
+
+        return message;
+    }
+
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {
-        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        onStompConnect(StompHeaderAccessor.wrap(event.getMessage()));
+    }
+
+    private void onStompConnect(StompHeaderAccessor headerAccessor) {
         String userId = resolveUserId(headerAccessor);
         String sessionId = headerAccessor.getSessionId();
 
