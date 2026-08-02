@@ -13,7 +13,6 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessageHandler;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.broker.AbstractBrokerMessageHandler;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ExecutorChannelInterceptor;
@@ -97,11 +96,10 @@ public class WebSocketEventListener implements ExecutorChannelInterceptor {
         broadcastOnlineCount();
     }
 
-    // Not a SessionSubscribeEvent listener: that event fires before the broker registers the
-    // subscription, and the simple broker drops messages sent to a destination with no subscriber.
+    // Runs after inbound SUBSCRIBE handling completes (broker subscription is registered synchronously).
     @Override
     public void afterMessageHandled(Message<?> message, MessageChannel channel, MessageHandler handler, Exception ex) {
-        if (ex != null || !(handler instanceof AbstractBrokerMessageHandler)) {
+        if (ex != null) {
             return;
         }
 
