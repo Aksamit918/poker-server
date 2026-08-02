@@ -21,8 +21,8 @@ public class Table {
     private static final int TURN_TIMEOUT = 15;
     private static final int STAGE_TRANSITION_DELAY = 2;
     private static final int REBUY_TIMEOUT = 30;
-    private static final int SHOWDOWN_BASE_DELAY = 2;
-    private static final int SHOWDOWN_LAYER_DELAY = 5;
+    private static final int SHOWDOWN_BASE_DELAY = 10;
+    private static final int SHOWDOWN_LAYER_DELAY = 3;
     private static final long REBUY_GRACE_PERIOD_MS = 3500;
     private static final int START_GAME_DELAY = 3;
     private static final int PREMATURE_END_DELAY = 4;
@@ -578,7 +578,6 @@ public class Table {
     }
     private int distributePot() {
         lastShowdownPayouts.clear();
-        Map<String, ShowdownPayoutDTO> aggregatedPayouts = new HashMap<>();
         Map<Player, Long> contributions = new HashMap<>();
         for (Player p : players) {
             if (p.getTotalInHand() > 0) {
@@ -633,7 +632,6 @@ public class Table {
                             .max(HandResult::compareTo).get();
 
                     if (winRes.getCategory() == bestLoserRes.getCategory()) {
-
                         int mainRanksCount = (winRes.getCategory() == HandCategory.TWO_PAIRS ||
                                 winRes.getCategory() == HandCategory.FULL_HOUSE) ? 2 : 1;
 
@@ -657,39 +655,18 @@ public class Table {
                     isKickerWinner = false;
                 }
 
-                String userId = w.getUserId();
-                ShowdownPayoutDTO newDTO = null;
-                if (!aggregatedPayouts.containsKey(userId)) {
-                    newDTO = new ShowdownPayoutDTO(
-                            w.getUserId(),
-                            winAmount,
-                            winRes.getCategory().name(),
-                            winRes.getRankCards().stream().map(c -> c.getShortName().toUpperCase()).toList(),
-                            needKickersInJson ? winRes.getKickerCards().stream().map(c -> c.getShortName().toUpperCase()).toList() : Collections.emptyList(),
-                            potLayerIndex > 0,
-                            isKickerWinner
-                    );
-
-                    aggregatedPayouts.put(userId, newDTO);
-                } else {
-                    ShowdownPayoutDTO existing = aggregatedPayouts.get(userId);
-
-                    newDTO = new ShowdownPayoutDTO(
-                            existing.userId(),
-                            existing.amount() + winAmount,
-                            existing.handName(),
-                            existing.rankCards(),
-                            existing.kickerCards(),
-                            existing.isSidePot(),
-                            existing.isKickerWinner() || isKickerWinner
-                    );
-
-                    aggregatedPayouts.put(userId, newDTO);
-                }
+                lastShowdownPayouts.add(new ShowdownPayoutDTO(
+                        w.getUserId(),
+                        winAmount,
+                        winRes.getCategory().name(),
+                        winRes.getRankCards().stream().map(c -> c.getShortName().toUpperCase()).toList(),
+                        needKickersInJson ? winRes.getKickerCards().stream().map(c -> c.getShortName().toUpperCase()).toList() : Collections.emptyList(),
+                        potLayerIndex > 0,
+                        isKickerWinner
+                ));
             }
             potLayerIndex++;
         }
-        lastShowdownPayouts.addAll(aggregatedPayouts.values());
 
         if (eventListener != null) {
             List<String> allPlayersIds = players.stream()
