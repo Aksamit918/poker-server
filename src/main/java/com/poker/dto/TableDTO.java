@@ -2,42 +2,32 @@ package com.poker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.poker.model.Table;
-import com.poker.util.FormatUtils;
 
 public record TableDTO(
-        @JsonProperty("table_id") String id,
-        @JsonProperty("table_name") String name,
-        @JsonProperty("min_players_num") int minPlayerNum,
-        @JsonProperty("max_players_num") int maxPlayersNum,
+        @JsonProperty("table_id") String tableId,
+        @JsonProperty("table_name") String tableName,
+        @JsonProperty("small_blind") long smallBlind,
+        @JsonProperty("big_blind") long bigBlind,
         @JsonProperty("blinds") String blinds,
-
+        @JsonProperty("min_players_num") int minPlayers,
+        @JsonProperty("max_players_num") int maxPlayers,
+        @JsonProperty("current_players") int currentPlayers,
         @JsonProperty("min_buy_in") long minBuyIn,
         @JsonProperty("max_buy_in") long maxBuyIn,
-        @JsonProperty("min_buy_in_formatted") String minBuyInFmt,
-        @JsonProperty("max_buy_in_formatted") String maxBuyInFmt,
-
-        @JsonProperty("current_players") int currentPlayers,
-        @JsonProperty("max_players") int maxPlayers,
-        @JsonProperty("state") String state,
-
         @JsonProperty("is_private") boolean isPrivate
 ) {
     public static TableDTO createTableDTO(Table table) {
         return new TableDTO(
                 table.getId(),
                 table.getName(),
+                table.getSmallBlindBet(),
+                table.getBigBlindBet(),
+                table.getSmallBlindBet() + "/" + table.getBigBlindBet(),
                 table.getMIN_PLAYERS(),
                 table.getMAX_PLAYERS(),
-                FormatUtils.formatBlinds(table.getSmallBlindBet(), table.getBigBlindBet()),
-
+                table.getPlayerCount(),
                 table.getMinBuyIn(),
                 table.getMaxBuyIn(),
-                FormatUtils.format(table.getMinBuyIn()),
-                FormatUtils.format(table.getMaxBuyIn()),
-
-                table.getPlayerCount(),
-                table.getMaxPlayers(),
-                table.getState().name(),
                 table.isPrivate()
         );
     }

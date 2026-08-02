@@ -40,6 +40,8 @@ public class WebSocketEventListener {
                 if (isNewUser) {
                     broadcastOnlineCount();
                 }
+
+                sendLobbySnapshotToUser(userId);
             }
         }
     }
@@ -72,23 +74,7 @@ public class WebSocketEventListener {
 
             if (userId != null && destination != null && destination.equals("/topic/lobby")) {
                 broadcastOnlineCount();
-
-                List<TableDTO> currentLobby = tableManager.getAllTables().stream()
-                        .map(com.poker.dto.TableDTO::createTableDTO)
-                        .toList();
-
-                Map<String, Object> lobbySnapshot = Map.of(
-                        "event_type", "LOBBY_UPDATE",
-                        "tables", currentLobby
-                );
-
-                messagingTemplate.convertAndSendToUser(
-                        userId,
-                        "/queue/lobby_snapshot",
-                        lobbySnapshot
-                );
-
-                messagingTemplate.convertAndSend("/topic/lobby", lobbySnapshot);
+                sendLobbySnapshotToUser(userId);
             }
 
             if (userId != null && destination != null && destination.startsWith("/topic/table/")) {
@@ -114,7 +100,24 @@ public class WebSocketEventListener {
             }
         }
     }
-    
+
+    private void sendLobbySnapshotToUser(String userId) {
+        List<TableDTO> currentLobby = tableManager.getAllTables().stream()
+                .map(TableDTO::createTableDTO)
+                .toList();
+
+        Map<String, Object> lobbySnapshot = Map.of(
+                "event_type", "LOBBY_UPDATE",
+                "tables", currentLobby
+        );
+
+        messagingTemplate.convertAndSendToUser(
+                userId,
+                "/queue/lobby_snapshot",
+                lobbySnapshot
+        );
+    }
+
     private void broadcastOnlineCount() {
         Map<String, Object> payload = Map.of(
                 "event_type", "ONLINE_UPDATE",
