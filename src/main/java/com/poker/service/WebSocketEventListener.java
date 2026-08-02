@@ -28,6 +28,8 @@ public class WebSocketEventListener {
 
     private final Set<String> onlineUsers = ConcurrentHashMap.newKeySet();
 
+    private final Map<String, String> activeUserSessions = new ConcurrentHashMap<>();
+
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
@@ -35,7 +37,12 @@ public class WebSocketEventListener {
 
         if (sessionAttributes != null) {
             String userId = (String) sessionAttributes.get("userId");
+            String sessionId = headerAccessor.getSessionId();
+
             if (userId != null) {
+                activeUserSessions.put(userId, sessionId);
+                tableManager.cancelDisconnectTask(userId);
+
                 boolean isNewUser = onlineUsers.add(userId);
                 if (isNewUser) {
                     broadcastOnlineCount();
@@ -53,8 +60,19 @@ public class WebSocketEventListener {
 
         if (sessionAttributes != null) {
             String userId = (String) sessionAttributes.get("userId");
+            String disconnectedSessionId = headerAccessor.getSessionId();
+
             if (userId != null) {
-                log.info("WebSocket disconnect for user: {}. Scheduling grace period kick...", userId);
+                String currentActiveSessionId = activeUserSessions.get(userId);
+
+                if (currentActiveSessionId != null && !currentActiveSessionId.equals(disconnectedSessionId)) {
+                    log.info("Ghost session {} disconnected for user {}. Ignoring because active session is {}.",
+                            disconnectedSessionId, userId, currentActiveSessionId);
+                    return;
+                }
+
+                log.info("Active WebSocket disconnect for user: {}. Scheduling grace period kick...", userId);
+                activeUserSessions.remove(userId);
                 tableManager.scheduleDisconnectKick(userId);
 
                 onlineUsers.remove(userId);
