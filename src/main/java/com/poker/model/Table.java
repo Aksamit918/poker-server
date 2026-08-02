@@ -452,7 +452,7 @@ public class Table {
                             }
                         }
 
-                        if (eventListener != null) {
+                        if (eventListener != null && this.state != TableStates.SHOWDOWN) {
                             eventListener.onTableUpdate(this);
                         }
 
