@@ -136,4 +136,24 @@ public class HandEvaluator {
         List<Rank> tieB = allCards.stream().limit(5).map(Card::getRank).collect(Collectors.toList());
         return new HandResult(HandCategory.HIGH_CARD, tieB, rankC, kickC);
     }
+
+    /**
+     * Client-facing hand label (e.g. SET vs TRIPS for three-of-a-kind).
+     * Strength comparison still uses {@link HandResult#getCategory()}.
+     */
+    public static String resolveHandName(List<Card> holeCards, List<Card> communityCards, HandResult result) {
+        if (result.getCategory() == HandCategory.THREE_OF_A_KIND) {
+            Rank tripRank = result.getTieBreakers().get(0);
+            long holeMatching = holeCards.stream().filter(c -> c.getRank() == tripRank).count();
+            long boardMatching = communityCards.stream().filter(c -> c.getRank() == tripRank).count();
+            if (holeMatching == 2 && boardMatching >= 1) {
+                return "SET";
+            }
+            if (holeMatching == 1 && boardMatching >= 2) {
+                return "TRIPS";
+            }
+            return "THREE_OF_A_KIND";
+        }
+        return result.getCategory().name();
+    }
 }

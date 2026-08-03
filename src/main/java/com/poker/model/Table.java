@@ -658,7 +658,7 @@ public class Table {
                 lastShowdownPayouts.add(new ShowdownPayoutDTO(
                         w.getUserId(),
                         winAmount,
-                        winRes.getCategory().name(),
+                        HandEvaluator.resolveHandName(w.getHand(), communityCards, winRes),
                         winRes.getRankCards().stream().map(c -> c.getShortName().toUpperCase()).toList(),
                         needKickersInJson ? winRes.getKickerCards().stream().map(c -> c.getShortName().toUpperCase()).toList() : Collections.emptyList(),
                         potLayerIndex > 0,
