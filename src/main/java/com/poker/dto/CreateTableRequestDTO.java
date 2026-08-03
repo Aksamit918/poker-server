@@ -21,6 +21,7 @@ public record CreateTableRequestDTO(
         @JsonProperty("min_players_num")
         int minPlayersNum,
 
+        @Min(value = 2, message = "2 players minimum")
         @Max(value = 10, message = "10 players maximum")
         @JsonProperty("max_players_num")
         int maxPlayersNum,
