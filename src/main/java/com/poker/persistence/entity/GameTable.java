@@ -16,8 +16,10 @@ import java.util.UUID;
 @NoArgsConstructor
 @Entity
 @Table(name = "game_tables")
-@Check(constraints = "small_blind > 0 AND big_blind > 0 AND small_blind < big_blind")
-@Check(constraints = "min_players >= 2 AND max_players <= 10 AND min_players <= max_players")
+@Check(name = "game_tables_blinds_check",
+        constraints = "small_blind > 0 AND big_blind > 0 AND small_blind < big_blind")
+@Check(name = "game_tables_players_capacity_check",
+        constraints = "min_players >= 2 AND max_players IN (2, 4, 6, 9, 10) AND min_players <= max_players")
 public class GameTable {
 
     @Id
