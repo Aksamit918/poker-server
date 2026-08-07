@@ -17,7 +17,6 @@ public class RedisConfig {
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
 
@@ -29,7 +28,6 @@ public class RedisConfig {
                                                         RedisMessageSubscriber subscriber) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-
         container.addMessageListener(subscriber, new PatternTopic("poker:table:*"));
         container.addMessageListener(subscriber, new PatternTopic("poker:lobby"));
         container.addMessageListener(subscriber, new PatternTopic("poker:wallet:*"));

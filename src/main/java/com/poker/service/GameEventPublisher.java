@@ -47,8 +47,6 @@ public class GameEventPublisher {
         publish(RedisTopics.getTableTopic(event.tableId()), event);
     }
 
-    // Callers publish while holding the Table lock and from the one-shot turn timer, so a thrown
-    // exception here would abort the hand or cancel the timer for good.
     private void publish(String topic, Object payload) {
         try {
             redisTemplate.convertAndSend(topic, payload);

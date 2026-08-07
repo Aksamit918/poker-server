@@ -1,0 +1,23 @@
+# Git / IDE
+.git
+.idea
+*.iml
+
+# Local Maven build output (image builds its own jar)
+target
+
+# Env / secrets
+.env
+.env.*
+
+# Runtime data mounted as a volume
+avatars
+
+# Not needed for image build
+HELP.md
+docker-compose*.yml
+.gitignore
+.gitattributes
+.mvn
+mvnw
+mvnw.cmd
