@@ -1,7 +1,6 @@
 package com.poker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.poker.model.Card;
 import com.poker.model.Player;
 import com.poker.model.PlayerStatus;
 
@@ -30,7 +29,7 @@ public record PlayerDTO(
 
         List<String> cards = Collections.emptyList();
 
-        if (player.getHand() != null && !player.getHand().isEmpty()) {
+        if (player.hasCards()) {
             if (isOwner || isShowdown) {
                 cards = player.getHand().stream()
                         .map(c -> c.getShortName().toUpperCase())

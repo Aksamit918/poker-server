@@ -9,6 +9,7 @@ import com.poker.util.TableEventListener;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 public class Table {
@@ -49,7 +50,7 @@ public class Table {
     private int smallBlindIdx;
     private int bigBlindIdx;
     private Deck deck;
-    private final List<Card> communityCards;
+    private final AtomicReferenceArray<Card> communityCards;
     private AtomicLong pot;
     private long lastRaiseStep = 0;
     private long currentMaxBet = 0;
@@ -69,7 +70,7 @@ public class Table {
         this.maxBuyIn = bigBlindBet * 100;
         this.players = new CopyOnWriteArrayList<>();
         this.deck = new Deck();
-        this.communityCards = new CopyOnWriteArrayList<>();
+        this.communityCards = new AtomicReferenceArray<>(5);
         this.pot = new AtomicLong(0);
         this.state = TableStates.WAITING_FOR_PLAYERS;
         this.smallBlindBet = smallBlindBet;
@@ -77,6 +78,32 @@ public class Table {
         this.dealerIdx = -1;
         this.activePlayerIdx = -1;
         this.eventListener = eventListener;
+    }
+
+    private void addCommunityCard(Card card) {
+        for (int i = 0; i < communityCards.length(); i++) {
+            if (communityCards.compareAndSet(i, null, card)) {
+                return;
+            }
+        }
+        throw new IllegalStateException("Community cards already dealt");
+    }
+
+    private void clearCommunityCards() {
+        for (int i = 0; i < communityCards.length(); i++) {
+            communityCards.set(i, null);
+        }
+    }
+
+    public List<Card> getCommunityCards() {
+        List<Card> cards = new ArrayList<>(5);
+        for (int i = 0; i < communityCards.length(); i++) {
+            Card c = communityCards.get(i);
+            if (c != null) {
+                cards.add(c);
+            }
+        }
+        return List.copyOf(cards);
     }
 
     private void setupPositions() {
@@ -175,7 +202,7 @@ public class Table {
                     }
                 }
 
-                this.communityCards.clear();
+                clearCommunityCards();
                 this.deck = new Deck();
                 dealCards();
 
@@ -258,19 +285,19 @@ public class Table {
     }
     private void dealFlop() {
         synchronized (lock) {
-            communityCards.add(deck.drawCard());
-            communityCards.add(deck.drawCard());
-            communityCards.add(deck.drawCard());
+            addCommunityCard(deck.drawCard());
+            addCommunityCard(deck.drawCard());
+            addCommunityCard(deck.drawCard());
         }
     }
     private void dealTurn() {
         synchronized (lock) {
-            communityCards.add(deck.drawCard());
+            addCommunityCard(deck.drawCard());
         }
     }
     private void dealRiver() {
         synchronized (lock) {
-            communityCards.add(deck.drawCard());
+            addCommunityCard(deck.drawCard());
         }
     }
 
@@ -613,7 +640,7 @@ public class Table {
 
                 if (eventListener != null) {
                     List<String> allPlayersIds = players.stream()
-                            .filter(p -> !p.getHand().isEmpty())
+                            .filter(p -> p.hasCards())
                             .map(Player::getUserId).toList();
 
                     Map<String, Long> winnersMap = new HashMap<>();
@@ -633,9 +660,10 @@ public class Table {
 
     private List<Player> determineWinners(List<Player> candidates) {
         synchronized (lock) {
+            List<Card> board = getCommunityCards();
             Map<Player, HandResult> playerResults = new HashMap<>();
             for (Player player : candidates) {
-                HandResult handResult = HandEvaluator.evaluate(player.getHand(), communityCards);
+                HandResult handResult = HandEvaluator.evaluate(player.getHand(), board);
                 playerResults.put(player, handResult);
             }
 
@@ -687,19 +715,20 @@ public class Table {
             long share = currentLayerTotal / winners.size();
             long remainder = currentLayerTotal % winners.size();
 
+            List<Card> board = getCommunityCards();
             for (int i = 0; i < winners.size(); i++) {
                 Player w = winners.get(i);
                 long winAmount = (i == 0) ? share + remainder : share;
                 w.getChips().addAndGet(winAmount);
 
-                HandResult winRes = HandEvaluator.evaluate(w.getHand(), communityCards);
+                HandResult winRes = HandEvaluator.evaluate(w.getHand(), board);
 
                 boolean isKickerWinner = false;
                 boolean needKickersInJson = false;
 
                 if (!losers.isEmpty()) {
                     HandResult bestLoserRes = losers.stream()
-                            .map(l -> HandEvaluator.evaluate(l.getHand(), communityCards))
+                            .map(l -> HandEvaluator.evaluate(l.getHand(), board))
                             .max(HandResult::compareTo).get();
 
                     if (winRes.getCategory() == bestLoserRes.getCategory()) {
@@ -729,7 +758,7 @@ public class Table {
                 lastShowdownPayouts.add(new ShowdownPayoutDTO(
                         w.getUserId(),
                         winAmount,
-                        HandEvaluator.resolveHandName(w.getHand(), communityCards, winRes),
+                        HandEvaluator.resolveHandName(w.getHand(), board, winRes),
                         winRes.getRankCards().stream().map(c -> c.getShortName().toUpperCase()).toList(),
                         needKickersInJson ? winRes.getKickerCards().stream().map(c -> c.getShortName().toUpperCase()).toList() : Collections.emptyList(),
                         potLayerIndex > 0,
@@ -741,7 +770,7 @@ public class Table {
 
         if (eventListener != null) {
             List<String> allPlayersIds = players.stream()
-                    .filter(p -> !p.getHand().isEmpty())
+                    .filter(p -> p.hasCards())
                     .map(Player::getUserId).toList();
 
             Map<String, Long> winnersMap = new HashMap<>();
@@ -962,7 +991,7 @@ public class Table {
     }
     private void cleanupTable() {
         synchronized (lock) {
-            this.communityCards.clear();
+            clearCommunityCards();
             this.pot.set(0);
             this.currentMaxBet = 0;
             this.activePlayerIdx = -1;
@@ -1100,19 +1129,6 @@ public class Table {
         }
         return activeSeats.get(0);
     }
-    public int getPrevPlayerSeat(int currentSeat) {
-        Set<Integer> occupiedSeats = players.stream().map(Player::getSeatIndex).collect(Collectors.toSet());
-        if (occupiedSeats.isEmpty()) return -1;
-        int prevSeat = currentSeat;
-        for (int i = 0; i < MAX_PLAYERS; i++) {
-            prevSeat = (currentSeat - 1 + MAX_PLAYERS) % MAX_PLAYERS;
-            if (occupiedSeats.contains(prevSeat)) {
-                break;
-            }
-            currentSeat = prevSeat;
-        }
-        return prevSeat;
-    }
     public int getMIN_PLAYERS() {
         return MIN_PLAYERS;
     }
@@ -1152,9 +1168,6 @@ public class Table {
     public int getMaxPlayers() {
         return MAX_PLAYERS;
     }
-    public List<Card> getCommunityCards() {
-        return List.copyOf(communityCards);
-    }
     public List<Player> getPlayers() {
         synchronized(lock) {
             return List.copyOf(players);
@@ -1167,17 +1180,6 @@ public class Table {
     }
     public List<ShowdownPayoutDTO> getLastShowdownPayouts() {
         return lastShowdownPayouts;
-    }
-
-    public long getTimeToActMs() {
-        if (activePlayerIdx == -1 || isTransitioning || state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) {
-            return 0;
-        }
-
-        long elapsedMs = System.currentTimeMillis() - this.turnStartTime;
-        long remainingMs = (TURN_TIMEOUT * 1000L) - elapsedMs;
-
-        return Math.max(0, remainingMs);
     }
 
     public void bufferEvent(Object event) {

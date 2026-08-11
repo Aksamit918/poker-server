@@ -2,10 +2,11 @@ package com.poker.model;
 
 import com.poker.exception.ChipAmountException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class Player {
     private final String userId;
@@ -17,7 +18,7 @@ public class Player {
     private AtomicLong walletBalance;
     private long roundContribution = 0L;
     private long totalInHand = 0L;
-    private final List<Card> hand;
+    private final AtomicReferenceArray<Card> hand;
     private int missedTurns = 0;
     private long sitOutDeadline = 0L;
 
@@ -29,17 +30,24 @@ public class Player {
         this.seatIndex = seatIndex;
         this.walletBalance = remainingWallet;
         this.chips = chips;
-        hand = new CopyOnWriteArrayList<>();
+        hand = new AtomicReferenceArray<>(2);
     }
 
     public String getAvatarFilename() {
         return avatarFilename;
     }
     public void addCard(Card card) {
-        hand.add(card);
+        for (int i = 0; i < hand.length(); i++) {
+            if (hand.compareAndSet(i, null, card)) {
+                return;
+            }
+        }
+        throw new IllegalStateException("Hole cards already dealt");
     }
     public void clearHand() {
-        hand.clear();
+        for (int i = 0; i < hand.length(); i++) {
+            hand.set(i, null);
+        }
     }
     public long bet(long amount) {
         if (amount < 0) {
@@ -87,7 +95,17 @@ public class Player {
         this.totalInHand += totalInHand;
     }
     public List<Card> getHand() {
-        return hand;
+        List<Card> cards = new ArrayList<>(2);
+        for (int i = 0; i < hand.length(); i++) {
+            Card c = hand.get(i);
+            if (c != null) {
+                cards.add(c);
+            }
+        }
+        return List.copyOf(cards);
+    }
+    public boolean hasCards() {
+        return hand.get(0) != null;
     }
     public PlayerStatus getStatus() {
         return status;
