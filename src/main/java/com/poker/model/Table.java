@@ -18,6 +18,11 @@ public class Table {
     private final TableEventListener eventListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> currentTimer;
+    private ScheduledFuture<?> pendingStartTask;
+    private ScheduledFuture<?> pendingStreetTask;
+    private ScheduledFuture<?> pendingNextHandCleanupTask;
+    private ScheduledFuture<?> pendingNextHandStartTask;
+    private long handScheduleEpoch = 0;
     private static final int TURN_TIMEOUT = 15;
     private static final int STAGE_TRANSITION_DELAY = 2;
     private static final int REBUY_TIMEOUT = 30;
@@ -89,12 +94,39 @@ public class Table {
 
         this.activePlayerIdx = getNextActivePlayerSeat(bigBlindIdx);
     }
+    private void cancelFuture(ScheduledFuture<?> future) {
+        if (future != null && !future.isDone()) {
+            future.cancel(false);
+        }
+    }
+
+    private void cancelHandLifecycleTasks() {
+        cancelFuture(pendingStartTask);
+        cancelFuture(pendingStreetTask);
+        cancelFuture(pendingNextHandCleanupTask);
+        cancelFuture(pendingNextHandStartTask);
+        pendingStartTask = null;
+        pendingStreetTask = null;
+        pendingNextHandCleanupTask = null;
+        pendingNextHandStartTask = null;
+    }
+
+    private long beginHandScheduleEpoch() {
+        cancelHandLifecycleTasks();
+        return ++handScheduleEpoch;
+    }
+
     private void startNewHand() {
         try {
             synchronized (lock) {
+                if (this.state != TableStates.WAITING_FOR_PLAYERS) {
+                    return;
+                }
+
                 this.isTransitioning = false;
 
                 for (Player p : players) {
+                    p.clearHand();
                     if (p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet) {
                         p.setStatus(PlayerStatus.ACTIVE);
                         p.setRoundContribution(0);
@@ -143,6 +175,7 @@ public class Table {
                     }
                 }
 
+                this.communityCards.clear();
                 this.deck = new Deck();
                 dealCards();
 
@@ -163,39 +196,51 @@ public class Table {
     }
     private void scheduleNextHand(int delayInSeconds) {
         this.isTransitioning = true;
+        final long epoch = beginHandScheduleEpoch();
 
-        scheduler.schedule(() -> {
+        pendingNextHandCleanupTask = scheduler.schedule(() -> {
             try {
                 synchronized (lock) {
+                    if (epoch != handScheduleEpoch) {
+                        return;
+                    }
+
                     cleanupTable();
 
                     if (eventListener != null) {
                         eventListener.onTableUpdate(this);
                     }
 
-                    scheduler.schedule(() -> {
+                    pendingNextHandStartTask = scheduler.schedule(() -> {
                         synchronized (lock) {
+                            if (epoch != handScheduleEpoch) {
+                                return;
+                            }
+
                             long readyCount = players.stream()
                                     .filter(p -> p.getStatus() == PlayerStatus.WAITING && p.getChips().get() >= bigBlindBet)
                                     .count();
 
-                            if (readyCount >= MIN_PLAYERS) {
+                            if (readyCount >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                                 startNewHand();
-                            } else {
+                            } else if (state == TableStates.WAITING_FOR_PLAYERS) {
                                 this.isTransitioning = false;
-                                this.state = TableStates.WAITING_FOR_PLAYERS;
                                 if (eventListener != null) {
                                     eventListener.onTableUpdate(this);
                                 }
                                 System.out.println("DEBUG: Hand skipped. Still waiting for players.");
                             }
                         }
-                    },REBUY_GRACE_PERIOD_MS, TimeUnit.MILLISECONDS);
+                    }, REBUY_GRACE_PERIOD_MS, TimeUnit.MILLISECONDS);
                 }
             } catch (Exception e) {
                 System.err.println("CRITICAL ERROR IN scheduleNextHand: " + e.getMessage());
                 e.printStackTrace();
-                this.isTransitioning = false;
+                synchronized (lock) {
+                    if (epoch == handScheduleEpoch) {
+                        this.isTransitioning = false;
+                    }
+                }
             }
         }, delayInSeconds, TimeUnit.SECONDS);
     }
@@ -205,6 +250,7 @@ public class Table {
     private void dealCards() {
         for (Player player : players) {
             if (player.getStatus() == PlayerStatus.ACTIVE || player.getStatus() == PlayerStatus.ALL_IN) {
+                player.clearHand();
                 player.addCard(deck.drawCard());
                 player.addCard(deck.drawCard());
             }
@@ -416,9 +462,21 @@ public class Table {
                 }
             }
 
-            scheduler.schedule(() -> {
+            final TableStates stateWhenScheduled = this.state;
+            cancelFuture(pendingStreetTask);
+            pendingStreetTask = scheduler.schedule(() -> {
                 try {
                     synchronized (lock) {
+                        if (this.state != stateWhenScheduled) {
+                            return;
+                        }
+                        if (this.state != TableStates.PRE_FLOP
+                                && this.state != TableStates.FLOP
+                                && this.state != TableStates.TURN
+                                && this.state != TableStates.RIVER) {
+                            return;
+                        }
+
                         this.isTransitioning = false;
 
                         String previousState = this.state.name();
@@ -490,16 +548,29 @@ public class Table {
                 } catch (Exception e) {
                     System.err.println("FATAL ERROR IN endBettingRound: " + e.getMessage());
                     e.printStackTrace();
-                    this.isTransitioning = false;
+                    synchronized (lock) {
+                        if (this.state == stateWhenScheduled
+                                || this.state == TableStates.FLOP
+                                || this.state == TableStates.TURN
+                                || this.state == TableStates.RIVER
+                                || this.state == TableStates.SHOWDOWN) {
+                            this.isTransitioning = false;
+                        }
+                    }
                 }
             }, STAGE_TRANSITION_DELAY, TimeUnit.SECONDS);
         }
     }
     private void finishHandPrematurely() {
         synchronized (lock) {
-            if (this.state == TableStates.CLEANUP) return;
+            if (this.state == TableStates.CLEANUP || this.state == TableStates.WAITING_FOR_PLAYERS) {
+                return;
+            }
 
             stopTimer();
+            cancelFuture(pendingStreetTask);
+            pendingStreetTask = null;
+
             this.isTransitioning = true;
             this.state = TableStates.CLEANUP;
 
@@ -712,14 +783,18 @@ public class Table {
 
             if (playersWithMoney >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS && !isTransitioning) {
                 this.isTransitioning = true;
-                scheduler.schedule(() -> {
+                final long epoch = beginHandScheduleEpoch();
+                pendingStartTask = scheduler.schedule(() -> {
                     synchronized (lock) {
+                        if (epoch != handScheduleEpoch) {
+                            return;
+                        }
                         long checkAgain = players.stream()
                                 .filter(p -> p.getChips().get() >= bigBlindBet)
                                 .count();
                         if (checkAgain >= MIN_PLAYERS && state == TableStates.WAITING_FOR_PLAYERS) {
                             startNewHand();
-                        } else {
+                        } else if (state == TableStates.WAITING_FOR_PLAYERS) {
                             this.isTransitioning = false;
                         }
                     }
@@ -753,12 +828,28 @@ public class Table {
             }
 
             if (players.isEmpty()) {
+                stopTimer();
+                beginHandScheduleEpoch();
+                this.isTransitioning = false;
                 cleanupTable();
                 this.dealerIdx = -1;
                 return;
             }
 
-            if (state == TableStates.WAITING_FOR_PLAYERS) {
+            if (state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.CLEANUP) {
+                long playersWithMoney = players.stream()
+                        .filter(p -> p.getChips().get() >= bigBlindBet)
+                        .count();
+                if (playersWithMoney < MIN_PLAYERS) {
+                    cancelFuture(pendingStartTask);
+                    pendingStartTask = null;
+                    boolean nextHandPending =
+                            (pendingNextHandCleanupTask != null && !pendingNextHandCleanupTask.isDone())
+                                    || (pendingNextHandStartTask != null && !pendingNextHandStartTask.isDone());
+                    if (!nextHandPending && state == TableStates.WAITING_FOR_PLAYERS) {
+                        this.isTransitioning = false;
+                    }
+                }
                 if (eventListener != null) {
                     eventListener.onTableUpdate(this);
                 }
@@ -775,6 +866,12 @@ public class Table {
             }
 
             if (wasActivePlayer) {
+                if (isTransitioning) {
+                    if (eventListener != null) {
+                        eventListener.onTableUpdate(this);
+                    }
+                    return;
+                }
                 boolean hasNext = advanceTurn();
                 if (!hasNext) {
                     if (eventListener != null) {
@@ -802,20 +899,27 @@ public class Table {
     }
     private void startTimer() {
         stopTimer();
-        this.isTransitioning = false;
-
-        this.turnStartTime = System.currentTimeMillis();
 
         long activeCount = players.stream().filter(p -> p.getStatus() == PlayerStatus.ACTIVE).count();
-        if (activeCount < 1 || state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) {
+        if (activeCount < 1
+                || state == TableStates.WAITING_FOR_PLAYERS
+                || state == TableStates.SHOWDOWN
+                || state == TableStates.CLEANUP) {
             return;
         }
+
+        this.isTransitioning = false;
+        this.turnStartTime = System.currentTimeMillis();
 
         final int expectedSeatIdx = this.activePlayerIdx;
 
         currentTimer = scheduler.schedule(() -> {
             synchronized (lock) {
-                if (state == TableStates.WAITING_FOR_PLAYERS || state == TableStates.SHOWDOWN) return;
+                if (state == TableStates.WAITING_FOR_PLAYERS
+                        || state == TableStates.SHOWDOWN
+                        || state == TableStates.CLEANUP) {
+                    return;
+                }
 
                 if (this.activePlayerIdx != expectedSeatIdx) return;
 
