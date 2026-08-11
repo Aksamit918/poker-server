@@ -819,13 +819,13 @@ public class Table {
                 processFold(player);
             }
 
-            players.remove(player);
-
             long finalChipsToReturn = player.getChips().get();
 
             if (eventListener != null) {
-                eventListener.onPlayerLeave(player.getUserId(), finalChipsToReturn, seatIndex);
+                eventListener.onPlayerLeave(this.id, player.getUserId(), finalChipsToReturn, seatIndex);
             }
+
+            players.remove(player);
 
             if (players.isEmpty()) {
                 stopTimer();

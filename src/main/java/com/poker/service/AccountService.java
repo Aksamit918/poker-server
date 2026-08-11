@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -125,11 +126,15 @@ public class AccountService {
             log.error("Failed to kick zombie player {}: {}", userIdStr, e.getMessage());
         }
 
+        account = accountRepository.findById(account.getId())
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+
         String accessToken = jwtService.generateToken(userIdStr);
         RefreshToken refreshToken = createRefreshToken(account);
 
-        boolean bonusReceived = processDailyBonus(account);
-        accountRepository.save(account);
+        boolean bonusReceived = processDailyBonus(account.getId());
+        account = accountRepository.findById(account.getId())
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
 
         return LoginResponseDTO.fromAccount(account, accessToken, refreshToken.getToken(), bonusReceived, isNewUser);
     }
@@ -189,29 +194,47 @@ public class AccountService {
         return accountRepository.findByNicknameContaining(name);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void withdrawFromWallet(Long accountId, long amount, String tableId, TransactionType type) {
         if (amount <= 0) throw new InvalidInputException("error.amount.positive");
-        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
-        if (account.getBalance() < amount) throw new ChipAmountException("error.chips.insufficient", amount, account.getBalance());
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+        if (account.getBalance() < amount) {
+            throw new ChipAmountException("error.chips.insufficient", amount, account.getBalance());
+        }
+
+        int updated = accountRepository.withdrawBalance(accountId, amount);
+        if (updated != 1) {
+            Account latest = accountRepository.findById(accountId)
+                    .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+            throw new ChipAmountException("error.chips.insufficient", amount, latest.getBalance());
+        }
 
         GameTable table = resolveTable(tableId);
-        account.setBalance(account.getBalance() - amount);
-        accountRepository.save(account);
-
+        account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
         transactionRepository.save(new Transaction(account, table, -amount, type));
         publishWalletUpdateSafe(accountId, account.getBalance(), type);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void depositToWallet(Long accountId, long amount, String tableId, TransactionType type) {
         if (amount < 0) throw new InvalidInputException("error.amount.deposit.positive", amount);
-        Account account = accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+        if (amount == 0) {
+            return;
+        }
+
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+
+        int updated = accountRepository.depositBalance(accountId, amount);
+        if (updated != 1) {
+            throw new AccountNotFoundException("error.player.not.found");
+        }
 
         GameTable table = resolveTable(tableId);
-        account.setBalance(account.getBalance() + amount);
-        accountRepository.save(account);
-
+        account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
         transactionRepository.save(new Transaction(account, table, amount, type));
         publishWalletUpdateSafe(accountId, account.getBalance(), type);
     }
@@ -234,15 +257,21 @@ public class AccountService {
         }
     }
 
-    private boolean processDailyBonus(Account account) {
+    private boolean processDailyBonus(Long accountId) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+
         OffsetDateTime now = OffsetDateTime.now();
         boolean isFirstTime = (account.getLastBonusAt() == null);
         boolean isTimePassed = !isFirstTime && java.time.Duration.between(account.getLastBonusAt(), now).toHours() >= 24;
 
         if (isFirstTime || isTimePassed) {
-            account.setBalance(account.getBalance() + DAILY_BONUS_AMOUNT);
-            account.setLastBonusAt(now);
-            transactionRepository.save(new Transaction(account, null, DAILY_BONUS_AMOUNT, TransactionType.DAILY_BONUS));
+            accountRepository.depositBalance(accountId, DAILY_BONUS_AMOUNT);
+            accountRepository.updateLastBonusAt(accountId, now);
+            Account refreshed = accountRepository.findById(accountId)
+                    .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+            transactionRepository.save(new Transaction(refreshed, null, DAILY_BONUS_AMOUNT, TransactionType.DAILY_BONUS));
+            publishWalletUpdateSafe(accountId, refreshed.getBalance(), TransactionType.DAILY_BONUS);
             return true;
         }
         return false;
@@ -251,16 +280,12 @@ public class AccountService {
     @Transactional
     public void updatePlayerStats(String userId, boolean isWinner, long amountWon) {
         try {
-            Account account = accountRepository.findById(Long.parseLong(userId)).orElse(null);
-            if (account == null) return;
+            Long id = Long.parseLong(userId);
+            if (!accountRepository.existsById(id)) return;
 
-            account.setHandsPlayed(account.getHandsPlayed() + 1);
-            if (isWinner) {
-                account.setHandsWon(account.getHandsWon() + 1);
-                account.setTotalWon(account.getTotalWon() + amountWon);
-                if (amountWon > account.getBiggestPot()) account.setBiggestPot(amountWon);
-            }
-            accountRepository.save(account);
+            int wonInc = isWinner ? 1 : 0;
+            long wonAmount = isWinner ? amountWon : 0L;
+            accountRepository.updateHandStats(id, wonInc, wonAmount);
         } catch (Exception e) {
             log.error("Failed to update stats for user {}", userId, e);
         }

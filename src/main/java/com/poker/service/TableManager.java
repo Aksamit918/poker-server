@@ -89,11 +89,13 @@ public class TableManager implements TableEventListener {
     }
 
     @Override
-    public void onPlayerLeave(String userId, long chips, int seatIndex) {
-        String tableId = activePlayers.get(userId);
-        if (tableId == null) return;
-
-        accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
+    public void onPlayerLeave(String tableId, String userId, long chips, int seatIndex) {
+        try {
+            accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
+        } catch (Exception e) {
+            log.error("CRITICAL: Failed to cash out {} chips for user {} from table {}", chips, userId, tableId, e);
+            throw e;
+        }
 
         String realNickname = "Unknown";
         try {
@@ -274,16 +276,19 @@ public class TableManager implements TableEventListener {
         );
         tables.put(tableIdStr, newTable);
 
+        boolean withdrawn = false;
         try {
             accountService.withdrawFromWallet(uId, chips, tableIdStr, TransactionType.BUY_IN);
+            withdrawn = true;
+            Account refreshed = accountService.findById(uId);
             int seatIndex = newTable.getFreeSeat();
 
             Player creator = new Player(
                     userId,
-                    account.getNickname(),
-                    account.getAvatarFilename(),
+                    refreshed.getNickname(),
+                    refreshed.getAvatarFilename(),
                     seatIndex,
-                    new java.util.concurrent.atomic.AtomicLong(account.getBalance()),
+                    new java.util.concurrent.atomic.AtomicLong(refreshed.getBalance()),
                     new java.util.concurrent.atomic.AtomicLong(chips)
             );
 
@@ -292,6 +297,13 @@ public class TableManager implements TableEventListener {
 
         } catch (Exception e) {
             tables.remove(tableIdStr);
+            if (withdrawn) {
+                try {
+                    accountService.depositToWallet(uId, chips, tableIdStr, TransactionType.CASH_OUT);
+                } catch (Exception refundError) {
+                    log.error("CRITICAL: Failed to refund {} chips after createTable failure for user {}", chips, userId, refundError);
+                }
+            }
             throw e;
         }
 

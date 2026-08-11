@@ -104,8 +104,19 @@ public class TableController {
                 new AtomicLong(userBuyIn)
         );
 
-        table.joinTable(newPlayer);
-        tableManager.registerPlayer(authUserId, id);
+        try {
+            table.joinTable(newPlayer);
+            tableManager.registerPlayer(authUserId, id);
+        } catch (Exception e) {
+            try {
+                accountService.depositToWallet(userId, userBuyIn, id, TransactionType.CASH_OUT);
+            } catch (Exception refundError) {
+                throw new IllegalStateException(
+                        "Join failed and buy-in refund also failed for user " + userId + " amount " + userBuyIn,
+                        refundError);
+            }
+            throw e;
+        }
 
         return TableDetailsDTO.createTableDetailsDTO(table, authUserId);
     }
