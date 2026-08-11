@@ -1,6 +1,7 @@
 package com.poker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.poker.model.PlayerRank;
 import com.poker.persistence.entity.Account;
 
 public record UserStatsDTO(
@@ -8,24 +9,35 @@ public record UserStatsDTO(
         @JsonProperty("total_won") long totalWon,
         @JsonProperty("biggest_pot") long biggestPot,
         @JsonProperty("win_ratio") double winRatio,
-        String rank
+        String rank,
+        @JsonProperty("rank_progress_percent") double rankProgressPercent,
+        @JsonProperty("next_rank") String nextRank,
+        @JsonProperty("chips_to_next_rank") long chipsToNextRank,
+        @JsonProperty("rank_min_total_won") long rankMinTotalWon,
+        @JsonProperty("rank_max_total_won") Long rankMaxTotalWon
 ) {
     public static UserStatsDTO fromAccount(Account account) {
         long totalWon = account.getTotalWon();
-        String rank;
+        PlayerRank current = PlayerRank.fromTotalWon(totalWon);
+        PlayerRank next = current.next();
 
-        if (totalWon <= 10_000) {
-            rank = "Sucker";
-        } else if (totalWon <= 50_000) {
-            rank = "Fish";
-        } else if (totalWon <= 250_000) {
-            rank = "Grinder";
-        } else if (totalWon <= 1_000_000) {
-            rank = "Shark";
-        } else if (totalWon <= 5_000_000) {
-            rank = "Whale";
+        long rankMin = current.getMinTotalWon();
+        Long rankMax = next != null ? next.getMinTotalWon() : null;
+        String nextRankName = next != null ? next.getDisplayName() : null;
+
+        double progressPercent;
+        long chipsToNext;
+        if (next == null || rankMax == null) {
+            progressPercent = 100.0;
+            chipsToNext = 0L;
         } else {
-            rank = "High Roller";
+            long span = rankMax - rankMin;
+            long progressed = Math.max(0L, totalWon - rankMin);
+            progressPercent = span <= 0 ? 100.0 : (progressed * 100.0) / span;
+            if (progressPercent < 0) progressPercent = 0;
+            if (progressPercent > 100) progressPercent = 100;
+            progressPercent = Math.round(progressPercent * 10.0) / 10.0;
+            chipsToNext = Math.max(0L, rankMax - totalWon);
         }
 
         double ratio = 0.0;
@@ -39,7 +51,12 @@ public record UserStatsDTO(
                 totalWon,
                 account.getBiggestPot(),
                 ratio,
-                rank
+                current.getDisplayName(),
+                progressPercent,
+                nextRankName,
+                chipsToNext,
+                rankMin,
+                rankMax
         );
     }
 }
