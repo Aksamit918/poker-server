@@ -49,7 +49,10 @@ public class GlobalExceptionHandler {
             IllegalCheckException.class,
             IllegalCallException.class,
             ChipAmountException.class,
-            InvalidInputException.class
+            InvalidInputException.class,
+            InsufficientFunds.class,
+            EmoteNotFound.class,
+            EmoteNotPurchasable.class
     })
     public ResponseEntity<ErrorResponseDTO> handleBusinessLogicErrors(PokerException ex, Locale locale) {
         log.debug("Business Error: {} - {}", ex.getClass().getSimpleName(), ex.getMessage());
@@ -60,7 +63,8 @@ public class GlobalExceptionHandler {
             NotYourTurnException.class,
             IllegalTableStateException.class,
             PlayerAlreadyJoinedException.class,
-            TableFullException.class
+            TableFullException.class,
+            AlreadyOwned.class
     })
     public ResponseEntity<ErrorResponseDTO> handleConflictErrors(PokerException ex, Locale locale) {
         return createErrorResponse(ex, ex.getMessage(), ex.getArgs(), HttpStatus.CONFLICT, locale);
