@@ -348,12 +348,42 @@ public class Table {
         player.addToTotalInHand(actualPaid);
         updateStatusAfterBet(player);
     }
+    private long maxCoverableBet(Player actor) {
+        return players.stream()
+                .filter(p -> p != actor && p.isInHand())
+                .mapToLong(p -> p.getRoundContribution() + p.getChips().get())
+                .max()
+                .orElse(currentMaxBet);
+    }
+
+    private void matchCurrentBet(Player player) {
+        if (player.getRoundContribution() < currentMaxBet) {
+            processCall(player);
+        } else {
+            processCheck(player);
+        }
+    }
+
     private void processRaise(Player player, long newMaxBet) {
+        long maxCoverable = maxCoverableBet(player);
+        if (newMaxBet > maxCoverable) {
+            newMaxBet = maxCoverable;
+        }
+
         long minAllowedRaise = this.currentMaxBet + this.lastRaiseStep;
         long amountToRaise = newMaxBet - player.getRoundContribution();
         boolean isAllIn = amountToRaise >= player.getChips().get();
 
+        if (newMaxBet <= currentMaxBet) {
+            matchCurrentBet(player);
+            return;
+        }
+
         if (!isAllIn && newMaxBet < minAllowedRaise) {
+            if (maxCoverable < minAllowedRaise) {
+                matchCurrentBet(player);
+                return;
+            }
             throw new IllegalRaiseException("error.illegal.raise.too.low", minAllowedRaise);
         }
 
@@ -392,12 +422,21 @@ public class Table {
         player.setStatus(PlayerStatus.CHECKED);
     }
     private void processAllIn(Player player) {
-        long chips = player.getChips().get();
+        long available = player.getChips().get();
+        long maxPutIn = Math.max(0L, maxCoverableBet(player) - player.getRoundContribution());
+        long chips = Math.min(available, maxPutIn);
+        if (chips <= 0) {
+            if (player.getRoundContribution() >= currentMaxBet) {
+                processCheck(player);
+            }
+            return;
+        }
+
         pot.addAndGet(chips);
-        player.getChips().set(0);
+        player.getChips().addAndGet(-chips);
         player.addToRoundContribution(chips);
         player.addToTotalInHand(chips);
-        player.setStatus(PlayerStatus.ALL_IN);
+        updateStatusAfterBet(player);
 
         if (player.getRoundContribution() > currentMaxBet) {
 
