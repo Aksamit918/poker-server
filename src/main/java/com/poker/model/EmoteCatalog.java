@@ -13,6 +13,7 @@ public final class EmoteCatalog {
 
     private static final long PAID_EMOTE_PRICE = 200_000L;
     private static final long PIGGY_EMOTE_PRICE = 1_000_000L;
+    private static final long SAD_EMOTE_PRICE = 500_000L;
 
     private static final Map<String, EmoteDefinition> CATALOG = new LinkedHashMap<>();
 
@@ -28,6 +29,7 @@ public final class EmoteCatalog {
         addPaid("diamond_hand");
         addPaid("goat_king");
         addPaid("piggy", PIGGY_EMOTE_PRICE);
+        addPaid("sad_emoji", SAD_EMOTE_PRICE);
     }
 
     private EmoteCatalog() {
