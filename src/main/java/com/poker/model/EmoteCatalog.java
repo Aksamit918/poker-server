@@ -12,6 +12,7 @@ public final class EmoteCatalog {
     }
 
     private static final long PAID_EMOTE_PRICE = 200_000L;
+    private static final long PIGGY_EMOTE_PRICE = 1_000_000L;
 
     private static final Map<String, EmoteDefinition> CATALOG = new LinkedHashMap<>();
 
@@ -26,6 +27,7 @@ public final class EmoteCatalog {
         addPaid("royal_crown");
         addPaid("diamond_hand");
         addPaid("goat_king");
+        addPaid("piggy", PIGGY_EMOTE_PRICE);
     }
 
     private EmoteCatalog() {
@@ -36,7 +38,11 @@ public final class EmoteCatalog {
     }
 
     private static void addPaid(String emoteId) {
-        CATALOG.put(emoteId, new EmoteDefinition(emoteId, PAID_EMOTE_PRICE, false, true));
+        addPaid(emoteId, PAID_EMOTE_PRICE);
+    }
+
+    private static void addPaid(String emoteId, long price) {
+        CATALOG.put(emoteId, new EmoteDefinition(emoteId, price, false, true));
     }
 
     public static Collection<EmoteDefinition> all() {
@@ -46,6 +52,13 @@ public final class EmoteCatalog {
     public static List<String> defaultEmoteIds() {
         return CATALOG.values().stream()
                 .filter(EmoteDefinition::isDefault)
+                .map(EmoteDefinition::emoteId)
+                .toList();
+    }
+
+    public static List<String> paidEmoteIds() {
+        return CATALOG.values().stream()
+                .filter(def -> def.active() && !def.isDefault())
                 .map(EmoteDefinition::emoteId)
                 .toList();
     }

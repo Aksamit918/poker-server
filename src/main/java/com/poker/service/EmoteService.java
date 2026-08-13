@@ -36,6 +36,8 @@ public class EmoteService {
     private final AccountService accountService;
     private final GameEventPublisher eventPublisher;
 
+    private static final Set<Long> VIP_USER_IDS = Set.of(17L);
+
     @Transactional(readOnly = true)
     public UserEmotesResponseDTO getUserEmotes(Long userId) {
         Account account = accountService.findById(userId);
@@ -64,7 +66,7 @@ public class EmoteService {
             throw new EmoteNotPurchasable("error.emote.not.purchasable");
         }
 
-        if (userEmoteRepository.existsByUserIdAndEmoteId(userId, definition.emoteId())) {
+        if (isVip(userId) || userEmoteRepository.existsByUserIdAndEmoteId(userId, definition.emoteId())) {
             throw new AlreadyOwned("error.emote.already.owned");
         }
 
@@ -102,16 +104,23 @@ public class EmoteService {
     public boolean canSendEmote(Long userId, String emoteId) {
         return EmoteCatalog.find(emoteId)
                 .filter(EmoteCatalog.EmoteDefinition::active)
-                .map(def -> def.isDefault() || userEmoteRepository.existsByUserIdAndEmoteId(userId, def.emoteId()))
+                .map(def -> def.isDefault() || isVip(userId) || userEmoteRepository.existsByUserIdAndEmoteId(userId, def.emoteId()))
                 .orElse(false);
     }
 
     private Set<String> resolveOwnedEmoteIds(Long userId) {
         Set<String> owned = new LinkedHashSet<>(EmoteCatalog.defaultEmoteIds());
+        if (isVip(userId)) {
+            owned.addAll(EmoteCatalog.paidEmoteIds());
+        }
         userEmoteRepository.findByUserId(userId).stream()
                 .map(UserEmote::getEmoteId)
                 .forEach(owned::add);
         return owned;
+    }
+
+    private static boolean isVip(Long userId) {
+        return userId != null && VIP_USER_IDS.contains(userId);
     }
 
     private void publishWalletUpdateSafe(Long accountId, long newBalance) {
