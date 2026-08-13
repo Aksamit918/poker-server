@@ -30,10 +30,10 @@ public class TableManager implements TableEventListener {
     private final AccountService accountService;
     private final GameTableRepository tableRepository;
     private final GameEventPublisher eventPublisher;
+    private final ScheduledExecutorService scheduler;
 
     private final org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder passwordEncoder;
 
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, ScheduledFuture<?>> disconnectTasks = new ConcurrentHashMap<>();
 
     private static final int DISCONNECT_GRACE_PERIOD = 60;
@@ -41,10 +41,12 @@ public class TableManager implements TableEventListener {
     public TableManager(AccountService accountService,
                         GameTableRepository tableRepository,
                         GameEventPublisher eventPublisher,
+                        ScheduledExecutorService scheduler,
                         org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder passwordEncoder) {
         this.accountService = accountService;
         this.tableRepository = tableRepository;
         this.eventPublisher = eventPublisher;
+        this.scheduler = scheduler;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -65,7 +67,7 @@ public class TableManager implements TableEventListener {
             currentTurnSeat = table.getActivePlayerIdx();
             if (currentTurnSeat != -1 && table.getState() != TableStates.SHOWDOWN) {
                 long elapsed = System.currentTimeMillis() - table.getTurnStartTime();
-                timeToActMs = Math.max(0, 15000 - elapsed);
+                timeToActMs = Math.max(0, table.getTurnTimeoutMs() - elapsed);
             }
         }
 
@@ -125,7 +127,7 @@ public class TableManager implements TableEventListener {
         if (table != null) {
             eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
 
-            if (table.getPlayerCount() == 0) {
+            if (table.getPlayerCount() <= 1) {
                 try {
                     UUID uuid = UUID.fromString(tableId);
                     tableRepository.findById(uuid).ifPresent(dbTable -> {
@@ -272,7 +274,8 @@ public class TableManager implements TableEventListener {
                 minBuyIn,
                 isPrivate,
                 hashedPasscode,
-                this
+                this,
+                this.scheduler
         );
         tables.put(tableIdStr, newTable);
 
@@ -342,7 +345,8 @@ public class TableManager implements TableEventListener {
                     dbTable.getMinBuyIn(),
                     dbTable.getIsPrivate(),
                     dbTable.getPasscode(),
-                    this
+                    this,
+                    this.scheduler
             );
             tables.put(memoryTable.getId(), memoryTable);
         }

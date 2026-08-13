@@ -17,7 +17,7 @@ public class Table {
     private static final long EVENT_TTL_MS = 60000;
     private final Object lock = new Object();
     private final TableEventListener eventListener;
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService scheduler;
     private ScheduledFuture<?> currentTimer;
     private ScheduledFuture<?> pendingStartTask;
     private ScheduledFuture<?> pendingStreetTask;
@@ -58,8 +58,9 @@ public class Table {
     private final long bigBlindBet;
     private List<ShowdownPayoutDTO> lastShowdownPayouts = new ArrayList<>();
 
-    public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS, int MAX_PLAYERS,
-                 long minBuyIn, boolean isPrivate, String passcode, TableEventListener eventListener) {
+    public Table(String id, String name, long smallBlindBet, long bigBlindBet, int MIN_PLAYERS,
+                 int MAX_PLAYERS, long minBuyIn, boolean isPrivate, String passcode,
+                 TableEventListener eventListener, ScheduledExecutorService scheduler) {
         this.id = id;
         this.name = name;
         this.isPrivate = isPrivate;
@@ -78,6 +79,7 @@ public class Table {
         this.dealerIdx = -1;
         this.activePlayerIdx = -1;
         this.eventListener = eventListener;
+        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
 
     private void addCommunityCard(Card card) {
@@ -88,13 +90,11 @@ public class Table {
         }
         throw new IllegalStateException("Community cards already dealt");
     }
-
     private void clearCommunityCards() {
         for (int i = 0; i < communityCards.length(); i++) {
             communityCards.set(i, null);
         }
     }
-
     public List<Card> getCommunityCards() {
         List<Card> cards = new ArrayList<>(5);
         for (int i = 0; i < communityCards.length(); i++) {
@@ -121,12 +121,12 @@ public class Table {
 
         this.activePlayerIdx = getNextActivePlayerSeat(bigBlindIdx);
     }
+
     private void cancelFuture(ScheduledFuture<?> future) {
         if (future != null && !future.isDone()) {
             future.cancel(false);
         }
     }
-
     private void cancelHandLifecycleTasks() {
         cancelFuture(pendingStartTask);
         cancelFuture(pendingStreetTask);
@@ -137,7 +137,6 @@ public class Table {
         pendingNextHandCleanupTask = null;
         pendingNextHandStartTask = null;
     }
-
     private long beginHandScheduleEpoch() {
         cancelHandLifecycleTasks();
         return ++handScheduleEpoch;
@@ -921,6 +920,9 @@ public class Table {
         }
     }
 
+    public long getTurnTimeoutMs() {
+        return TURN_TIMEOUT * 1000L;
+    }
     private void stopTimer() {
         if (currentTimer != null && !currentTimer.isDone()) {
             currentTimer.cancel(false);

@@ -30,7 +30,7 @@ public record StreetEndDTO(
         long timeToActMs = 0;
         if (table.getActivePlayerIdx() != -1 && table.getState() != com.poker.model.TableStates.SHOWDOWN) {
             long timeElapsed = System.currentTimeMillis() - table.getTurnStartTime();
-            timeToActMs = Math.max(0, 15000 - timeElapsed);
+            timeToActMs = Math.max(0, table.getTurnTimeoutMs() - timeElapsed);
         }
 
         return new StreetEndDTO(

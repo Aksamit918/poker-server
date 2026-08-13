@@ -63,7 +63,7 @@ public record TableDetailsDTO(
 
         long timeToActMs = 0;
         if (table.getActivePlayerIdx() != -1 && !isShowdown && table.getState() != TableStates.WAITING_FOR_PLAYERS) {
-            long totalTurnTime = 15000;
+            long totalTurnTime = table.getTurnTimeoutMs();
             long timeElapsed = System.currentTimeMillis() - table.getTurnStartTime();
             timeToActMs = Math.max(0, totalTurnTime - timeElapsed);
         }
