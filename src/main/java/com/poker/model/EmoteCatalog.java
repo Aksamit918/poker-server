@@ -25,9 +25,9 @@ public final class EmoteCatalog {
         addDefault("beer");
         addDefault("clown");
 
-        addPaid("royal_crown");
-        addPaid("diamond_hand");
-        addPaid("goat_king");
+        addPaid("royal_crown", PAID_EMOTE_PRICE);
+        addPaid("diamond_hand", PAID_EMOTE_PRICE);
+        addPaid("goat_king", PAID_EMOTE_PRICE);
         addPaid("piggy", PIGGY_EMOTE_PRICE);
         addPaid("sad_emoji", SAD_EMOTE_PRICE);
     }
@@ -37,10 +37,6 @@ public final class EmoteCatalog {
 
     private static void addDefault(String emoteId) {
         CATALOG.put(emoteId, new EmoteDefinition(emoteId, 0L, true, true));
-    }
-
-    private static void addPaid(String emoteId) {
-        addPaid(emoteId, PAID_EMOTE_PRICE);
     }
 
     private static void addPaid(String emoteId, long price) {
