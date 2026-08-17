@@ -19,6 +19,7 @@ public final class EmoteCatalog {
     }
 
     private static final long PAID_EMOTE_PRICE = 200_000L;
+    private static final long CROWN_EMOTE_PRICE = 5_000L;
     private static final long DIAMOND_EMOTE_PRICE = 10_000L;
     private static final long PIGGY_EMOTE_PRICE = 1_000_000L;
     private static final long SAD_EMOTE_PRICE = 500_000L;
@@ -33,7 +34,7 @@ public final class EmoteCatalog {
         addDefault("beer", "Пивко", "🍻");
         addDefault("clown", "Клоун", "🤡");
 
-        addPaid("royal_crown", "Королевская корона", "👑", PAID_EMOTE_PRICE);
+        addPaid("royal_crown", "Королевская корона", "👑", CROWN_EMOTE_PRICE);
         addPaid("diamond_hand", "Алмаз", "💎", DIAMOND_EMOTE_PRICE);
         addPaid("goat_king", "GOAT", "🐐", PAID_EMOTE_PRICE);
         addPaid("piggy", "Копилка", "🐷", PIGGY_EMOTE_PRICE);
