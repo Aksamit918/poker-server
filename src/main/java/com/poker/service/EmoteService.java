@@ -47,6 +47,8 @@ public class EmoteService {
                 .filter(EmoteCatalog.EmoteDefinition::active)
                 .map(def -> new EmoteCatalogItemDTO(
                         def.emoteId(),
+                        def.name(),
+                        def.emoji(),
                         def.price(),
                         def.isDefault(),
                         owned.contains(def.emoteId())

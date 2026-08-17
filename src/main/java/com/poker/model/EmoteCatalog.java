@@ -8,39 +8,47 @@ import java.util.Optional;
 
 public final class EmoteCatalog {
 
-    public record EmoteDefinition(String emoteId, long price, boolean isDefault, boolean active) {
+    public record EmoteDefinition(
+            String emoteId,
+            String name,
+            String emoji,
+            long price,
+            boolean isDefault,
+            boolean active
+    ) {
     }
 
     private static final long PAID_EMOTE_PRICE = 200_000L;
+    private static final long DIAMOND_EMOTE_PRICE = 10_000L;
     private static final long PIGGY_EMOTE_PRICE = 1_000_000L;
     private static final long SAD_EMOTE_PRICE = 500_000L;
 
     private static final Map<String, EmoteDefinition> CATALOG = new LinkedHashMap<>();
 
     static {
-        addDefault("fire");
-        addDefault("cry");
-        addDefault("angry");
-        addDefault("poop");
-        addDefault("beer");
-        addDefault("clown");
+        addDefault("fire", "Огонь", "🔥");
+        addDefault("cry", "Слёзы", "😭");
+        addDefault("angry", "Злость", "🤬");
+        addDefault("poop", "Какашка", "💩");
+        addDefault("beer", "Пивко", "🍻");
+        addDefault("clown", "Клоун", "🤡");
 
-        addPaid("royal_crown", PAID_EMOTE_PRICE);
-        addPaid("diamond_hand", PAID_EMOTE_PRICE);
-        addPaid("goat_king", PAID_EMOTE_PRICE);
-        addPaid("piggy", PIGGY_EMOTE_PRICE);
-        addPaid("sad_emoji", SAD_EMOTE_PRICE);
+        addPaid("royal_crown", "Королевская корона", "👑", PAID_EMOTE_PRICE);
+        addPaid("diamond_hand", "Алмаз", "💎", DIAMOND_EMOTE_PRICE);
+        addPaid("goat_king", "GOAT", "🐐", PAID_EMOTE_PRICE);
+        addPaid("piggy", "Копилка", "🐷", PIGGY_EMOTE_PRICE);
+        addPaid("sad_emoji", "Грусть", "😢", SAD_EMOTE_PRICE);
     }
 
     private EmoteCatalog() {
     }
 
-    private static void addDefault(String emoteId) {
-        CATALOG.put(emoteId, new EmoteDefinition(emoteId, 0L, true, true));
+    private static void addDefault(String emoteId, String name, String emoji) {
+        CATALOG.put(emoteId, new EmoteDefinition(emoteId, name, emoji, 0L, true, true));
     }
 
-    private static void addPaid(String emoteId, long price) {
-        CATALOG.put(emoteId, new EmoteDefinition(emoteId, price, false, true));
+    private static void addPaid(String emoteId, String name, String emoji, long price) {
+        CATALOG.put(emoteId, new EmoteDefinition(emoteId, name, emoji, price, false, true));
     }
 
     public static Collection<EmoteDefinition> all() {
