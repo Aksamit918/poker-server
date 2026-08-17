@@ -19,10 +19,10 @@ public final class EmoteCatalog {
     }
 
     private static final long PAID_EMOTE_PRICE = 200_000L;
-    private static final long CROWN_EMOTE_PRICE = 5_000L;
+    private static final long CROWN_EMOTE_PRICE = 10_000L;
     private static final long DIAMOND_EMOTE_PRICE = 10_000L;
     private static final long PIGGY_EMOTE_PRICE = 1_000_000L;
-    private static final long SAD_EMOTE_PRICE = 500_000L;
+    private static final long SAD_EMOTE_PRICE = 5_000L;
 
     private static final Map<String, EmoteDefinition> CATALOG = new LinkedHashMap<>();
 
