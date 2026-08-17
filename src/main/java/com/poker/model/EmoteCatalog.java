@@ -18,7 +18,7 @@ public final class EmoteCatalog {
     ) {
     }
 
-    private static final long PAID_EMOTE_PRICE = 200_000L;
+    private static final long GOAT_EMOTE_PRICE = 25_000L;
     private static final long LOTTIE_PRICE_5K = 5_000L;
     private static final long LOTTIE_PRICE_10K = 10_000L;
     private static final long LOTTIE_PRICE_20K = 20_000L;
@@ -42,7 +42,7 @@ public final class EmoteCatalog {
 
         addPaid("royal_crown", "Королевская корона", "👑", CROWN_EMOTE_PRICE);
         addPaid("diamond_hand", "Алмаз", "💎", DIAMOND_EMOTE_PRICE);
-        addPaid("goat_king", "GOAT", "🐐", PAID_EMOTE_PRICE);
+        addPaid("goat_king", "GOAT", "🐐", GOAT_EMOTE_PRICE);
         addPaid("piggy", "Копилка", "🐷", PIGGY_EMOTE_PRICE);
         addPaid("sad_emoji", "Грусть", "😢", SAD_EMOTE_PRICE);
         addPaid("vino", "Винцо", "🍷", LOTTIE_PRICE_20K);
@@ -52,10 +52,10 @@ public final class EmoteCatalog {
         addPaid("flex", "Флекс", "💪", LOTTIE_PRICE_10K);
         addPaid("raised_eyebrow", "Поднятые брови", "🤨", LOTTIE_PRICE_20K);
         addPaid("thinking", "Задумчивость", "🤔", LOTTIE_PRICE_10K);
-        addPaid("clown_laugh", "Смеющийся клоун", "🤣", LOTTIE_PRICE_100K);
+        addPaid("clown_laugh", "Смеющийся клоун", "🤡", LOTTIE_PRICE_100K);
         addPaid("coin", "Монета", "🪙", LOTTIE_PRICE_5K);
         addPaid("dancing_pallbearers", "Dancing Pallbearers", "⚰️", PIGGY_EMOTE_PRICE);
-        addPaid("flushed", "Emoji Flushed Face", "😳", LOTTIE_PRICE_10K);
+        addPaid("flushed", "Удивлённость", "😳", LOTTIE_PRICE_10K);
         addPaid("flying_money", "Летящие деньги", "💸", LOTTIE_PRICE_10K);
         addPaid("piggy_coins_out", "Деньги на вылет", "💰", PIGGY_EMOTE_PRICE);
         addPaid("piggy_dancing", "Танцующая копилка", "🐷", PIGGY_EMOTE_PRICE);
