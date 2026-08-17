@@ -19,6 +19,9 @@ public final class EmoteCatalog {
     }
 
     private static final long PAID_EMOTE_PRICE = 200_000L;
+    private static final long LOTTIE_PRICE_5K = 5_000L;
+    private static final long LOTTIE_PRICE_10K = 10_000L;
+    private static final long LOTTIE_PRICE_20K = 20_000L;
     private static final long CROWN_EMOTE_PRICE = 10_000L;
     private static final long DIAMOND_EMOTE_PRICE = 10_000L;
     private static final long PIGGY_EMOTE_PRICE = 1_000_000L;
@@ -39,6 +42,13 @@ public final class EmoteCatalog {
         addPaid("goat_king", "GOAT", "🐐", PAID_EMOTE_PRICE);
         addPaid("piggy", "Копилка", "🐷", PIGGY_EMOTE_PRICE);
         addPaid("sad_emoji", "Грусть", "😢", SAD_EMOTE_PRICE);
+        addPaid("vino", "Винцо", "🍷", LOTTIE_PRICE_20K);
+        addPaid("cool", "Крутость", "😎", LOTTIE_PRICE_20K);
+        addPaid("hourglass", "Время", "⏳", LOTTIE_PRICE_5K);
+        addPaid("like", "Like", "👍", LOTTIE_PRICE_5K);
+        addPaid("flex", "Флекс", "💪", LOTTIE_PRICE_10K);
+        addPaid("raised_eyebrow", "Поднятые брови", "🤨", LOTTIE_PRICE_20K);
+        addPaid("thinking", "Задумчивость", "🤔", LOTTIE_PRICE_10K);
     }
 
     private EmoteCatalog() {
