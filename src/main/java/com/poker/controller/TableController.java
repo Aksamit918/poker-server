@@ -173,7 +173,7 @@ public class TableController {
 
         table.rebuy(player, amount, realWalletBalance);
 
-        return new RebuyResponseDTO(player.getChips().get());
+        return new RebuyResponseDTO(player.getChips().get(), realWalletBalance);
     }
 
     @PostMapping("/{id}/action")

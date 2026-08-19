@@ -1,4 +1,8 @@
 package com.poker.dto;
 
-public record PingPayloadDTO(long clientTime) {
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public record PingPayloadDTO(
+        @JsonProperty("clientTime") long clientTime
+) {
 }
