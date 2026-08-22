@@ -1,0 +1,11 @@
+services:
+  app:
+    ports: !override []
+
+  nginx:
+    ports: !override
+      - "127.0.0.1:80:80"
+    volumes: !override
+      - ./nginx.laptop.conf:/etc/nginx/nginx.conf:ro
+      - ./avatars:/usr/share/nginx/avatars:ro
+      - ../frontend/static:/usr/share/nginx/static:ro
