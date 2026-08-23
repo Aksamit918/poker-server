@@ -68,7 +68,7 @@ class WebSocketEventListenerTest {
         listener.preSend(connectMessage(), channel);
 
         verify(tableManager).cancelDisconnectTask("42");
-        verify(messagingTemplate).convertAndSend(eq("/topic/lobby"), any());
+        verify(messagingTemplate).convertAndSend(eq("/topic/lobby"), any(Object.class));
     }
 
     private static Message<byte[]> subscribeMessage(String destination) {
