@@ -28,6 +28,10 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     int updateLastBonusAt(@Param("id") Long id, @Param("at") OffsetDateTime at);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Account a SET a.avatarFilename = :filename WHERE a.id = :id")
+    int updateAvatarFilename(@Param("id") Long id, @Param("filename") String filename);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Account a SET
                 a.handsPlayed = a.handsPlayed + 1,

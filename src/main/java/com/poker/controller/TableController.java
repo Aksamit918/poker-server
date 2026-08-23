@@ -13,6 +13,7 @@ import com.poker.service.AccountService;
 import com.poker.service.TableManager;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/tables")
 @RequiredArgsConstructor
@@ -179,8 +181,7 @@ public class TableController {
     @PostMapping("/{id}/action")
     public ResponseEntity<?> action(@PathVariable String id, @RequestBody ActionRequestDTO request) {
         String authUserId = getAuthenticatedUserId();
-        System.out.println("\n[DEBUG] === ЗАПРОС НА ДЕЙСТВИЕ ===");
-        System.out.println("[DEBUG] User: " + authUserId + ", Action: " + request.type() + ", Amount: " + request.amount());
+        log.debug("Action request: user={}, type={}, amount={}", authUserId, request.type(), request.amount());
 
         Table table = tableManager.getTable(id);
         if (table == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Table not found"));
@@ -191,10 +192,7 @@ public class TableController {
         Player player = playerOpt.get();
         PlayerAction action = new PlayerAction(request.type(), request.amount());
 
-        System.out.println("[DEBUG] Пытаемся выполнить handleAction...");
         table.handleAction(player, action);
-
-        System.out.println("[DEBUG] Действие успешно выполнено (этого лога не должно быть при ошибке)");
         return ResponseEntity.ok(TableDetailsDTO.createTableDetailsDTO(table, authUserId));
     }
 

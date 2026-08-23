@@ -6,6 +6,7 @@ import com.poker.persistence.entity.Account;
 import com.poker.service.AccountService;
 import com.poker.service.GoogleAuthService;
 import com.poker.service.TableManager;
+import com.poker.util.ImageFormatDetector;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.UUID;
 
@@ -74,51 +74,54 @@ public class AuthController {
     public ResponseEntity<?> uploadAvatar(@RequestParam("file") MultipartFile file) {
         String userIdStr = getAuthenticatedUserId();
         if (userIdStr == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
         }
         Long userId = Long.parseLong(userIdStr);
 
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("File is empty");
+        if (file == null || file.isEmpty()) {
+            log.warn("Rejected avatar for user {}: empty file (contentType='{}', originalFilename='{}')",
+                    userId, file == null ? null : file.getContentType(), file == null ? null : file.getOriginalFilename());
+            return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
         }
 
+        Path targetPath = null;
         try {
-            String contentType = file.getContentType();
-            if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png"))) {
-                return ResponseEntity.badRequest().body("Only JPEG and PNG images are allowed");
+            byte[] data = file.getBytes();
+            ImageFormatDetector.Format format = ImageFormatDetector.detect(data);
+            if (format == null) {
+                log.warn("Rejected avatar for user {}: not jpeg/png (contentType='{}', originalFilename='{}', size={})",
+                        userId, file.getContentType(), file.getOriginalFilename(), data.length);
+                return ResponseEntity.badRequest().body(Map.of("error", "Only JPEG and PNG images are allowed"));
             }
 
-            String extension = contentType.equals("image/jpeg") ? ".jpg" : ".png";
-            String filename = userId + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
+            if (!format.contentType().equals(file.getContentType())) {
+                log.info("Accepted avatar for user {} by magic bytes (contentType='{}')", userId, file.getContentType());
+            }
 
-            Path targetPath = Paths.get(uploadDir).resolve(filename);
+            String filename = userId + "_" + UUID.randomUUID().toString().substring(0, 8) + format.extension();
+            targetPath = Paths.get(uploadDir).resolve(filename);
             Files.createDirectories(targetPath.getParent());
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(targetPath, data);
 
-            Account account = accountService.findById(userId);
-
-            if (account.getAvatarFilename() != null) {
-                try {
-                    Files.deleteIfExists(Paths.get(uploadDir).resolve(account.getAvatarFilename()));
-                } catch (Exception e) {
-                    log.warn("Failed to delete old avatar file: {}", account.getAvatarFilename());
-                }
-            }
-
-            account.setAvatarFilename(filename);
-            accountService.saveAccount(account);
+            String previousFilename = accountService.replaceAvatarFilename(userId, filename);
+            deleteAvatarFileIfPresent(previousFilename);
 
             String publicAvatarUrl = publicUrl + "/avatars/" + filename;
-
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "avatar_url", publicAvatarUrl,
                     "avatar_filename", filename
             ));
-
         } catch (Exception e) {
+            if (targetPath != null) {
+                try {
+                    Files.deleteIfExists(targetPath);
+                } catch (Exception cleanupError) {
+                    log.warn("Failed to delete rejected avatar file {}", targetPath, cleanupError);
+                }
+            }
             log.error("Failed to upload avatar for user {}", userId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload image");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Failed to upload image"));
         }
     }
 
@@ -170,5 +173,22 @@ public class AuthController {
         verifyUserIdMatch(id);
         Account account = accountService.findById(id);
         return Map.of("wallet_balance", account.getBalance());
+    }
+
+    private void deleteAvatarFileIfPresent(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return;
+        }
+        try {
+            Path uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path target = uploadRoot.resolve(filename).normalize();
+            if (!target.startsWith(uploadRoot)) {
+                log.warn("Refusing to delete avatar outside upload dir: {}", filename);
+                return;
+            }
+            Files.deleteIfExists(target);
+        } catch (Exception e) {
+            log.warn("Failed to delete old avatar file: {}", filename);
+        }
     }
 }

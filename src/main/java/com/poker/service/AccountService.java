@@ -140,8 +140,16 @@ public class AccountService {
     }
 
     @Transactional
-    public void saveAccount(Account account) {
-        accountRepository.save(account);
+    public String replaceAvatarFilename(Long accountId, String filename) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("error.player.not.found"));
+        String previousFilename = account.getAvatarFilename();
+
+        int updated = accountRepository.updateAvatarFilename(accountId, filename);
+        if (updated != 1) {
+            throw new AccountNotFoundException("error.player.not.found");
+        }
+        return previousFilename;
     }
 
     @Transactional

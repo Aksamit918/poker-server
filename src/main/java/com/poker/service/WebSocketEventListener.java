@@ -13,12 +13,12 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessageHandler;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ExecutorChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.util.List;
@@ -54,11 +54,6 @@ public class WebSocketEventListener implements ExecutorChannelInterceptor {
         return message;
     }
 
-    @EventListener
-    public void handleWebSocketConnectListener(SessionConnectedEvent event) {
-        onStompConnect(StompHeaderAccessor.wrap(event.getMessage()));
-    }
-
     private void onStompConnect(StompHeaderAccessor headerAccessor) {
         String userId = resolveUserId(headerAccessor);
         String sessionId = headerAccessor.getSessionId();
@@ -91,15 +86,14 @@ public class WebSocketEventListener implements ExecutorChannelInterceptor {
             return;
         }
 
-        log.info("Last WebSocket session closed for user {}. Scheduling grace period kick...", userId);
+        log.info("Last WebSocket session closed for user {}", userId);
         tableManager.scheduleDisconnectKick(userId);
         broadcastOnlineCount();
     }
 
-    // Runs after inbound SUBSCRIBE handling completes (broker subscription is registered synchronously).
     @Override
     public void afterMessageHandled(Message<?> message, MessageChannel channel, MessageHandler handler, Exception ex) {
-        if (ex != null) {
+        if (ex != null || !(handler instanceof SimpleBrokerMessageHandler)) {
             return;
         }
 
