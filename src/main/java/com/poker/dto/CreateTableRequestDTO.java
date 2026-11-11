@@ -37,10 +37,8 @@ public record CreateTableRequestDTO(
         @JsonProperty("big_blind")
         long bigBlind
 ) {
-    private static final Set<Integer> ALLOWED_TABLE_SIZES = Set.of(2, 4, 6, 9, 10);
-
     @AssertTrue(message = "max_players_num must be 2, 4, 6, 9 or 10")
     public boolean isAllowedTableSize() {
-        return ALLOWED_TABLE_SIZES.contains(maxPlayersNum);
+        return Set.of(2, 4, 6, 9, 10).contains(maxPlayersNum);
     }
 }

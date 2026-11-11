@@ -1,15 +1,12 @@
 package com.poker.service;
 
-import com.poker.dto.events.StreetEndDTO;
 import com.poker.dto.events.TableDetailsDTO;
-import com.poker.dto.events.PlayerStatusEvent;
 import com.poker.exception.ChipAmountException;
 import com.poker.exception.IllegalTableStateException;
 import com.poker.model.*;
 import com.poker.persistence.entity.Account;
 import com.poker.persistence.entity.GameTable;
 import com.poker.persistence.repository.GameTableRepository;
-import com.poker.util.TableEventListener;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +21,9 @@ import java.util.concurrent.*;
 
 @Slf4j
 @Service
-public class TableManager implements TableEventListener {
+public class TableManager {
     private final Map<String, Table> tables = new ConcurrentHashMap<>();
+    private final TableEventService tableEventService;
     private final Map<String, String> activePlayers = new ConcurrentHashMap<>();
     private final AccountService accountService;
     private final GameTableRepository tableRepository;
@@ -38,11 +36,13 @@ public class TableManager implements TableEventListener {
 
     private static final int DISCONNECT_GRACE_PERIOD = 60;
 
-    public TableManager(AccountService accountService,
+    public TableManager(TableEventService tableEventService,
+                        AccountService accountService,
                         GameTableRepository tableRepository,
                         GameEventPublisher eventPublisher,
                         ScheduledExecutorService scheduler,
                         org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder passwordEncoder) {
+        this.tableEventService = tableEventService;
         this.accountService = accountService;
         this.tableRepository = tableRepository;
         this.eventPublisher = eventPublisher;
@@ -50,136 +50,30 @@ public class TableManager implements TableEventListener {
         this.passwordEncoder = passwordEncoder;
     }
 
-    @Override
-    public void onTableUpdate(Table table) {
-        TableDetailsDTO dto = TableDetailsDTO.createTableDetailsDTO(table, null);
-        eventPublisher.publishTableUpdate(dto);
-    }
-
-    @Override
-    public void onPlayerAction(String tableId, Player player, ActionType type, long amount, long pot) {
-        Table table = tables.get(tableId);
-
-        long timeToActMs = 0;
-        int currentTurnSeat = -1;
-
-        if (table != null) {
-            currentTurnSeat = table.getActivePlayerIdx();
-            if (currentTurnSeat != -1 && table.getState() != TableStates.SHOWDOWN) {
-                long elapsed = System.currentTimeMillis() - table.getTurnStartTime();
-                timeToActMs = Math.max(0, table.getTurnTimeoutMs() - elapsed);
-            }
-        }
-
-        var actionEvent = new com.poker.dto.events.PlayerActionEvent(
-                "PLAYER_ACTION",
-                tableId,
-                player.getSeatIndex(),
-                type,
-                amount,
-                com.poker.dto.events.PlayerPublicStateDTO.fromPlayer(player),
-                pot,
-                currentTurnSeat,
-                timeToActMs
-        );
-
-        if (table != null) {
-            table.bufferEvent(actionEvent);
-        }
-
-        eventPublisher.publishPlayerAction(actionEvent);
-    }
-
-    @Override
-    public void onPlayerLeave(String tableId, String userId, long chips, int seatIndex) {
+    public void cashOutLeavingPlayer(String userId, long chips, String tableId) {
         try {
             accountService.depositToWallet(Long.parseLong(userId), chips, tableId, TransactionType.CASH_OUT);
         } catch (Exception e) {
             log.error("CRITICAL: Failed to cash out {} chips for user {} from table {}", chips, userId, tableId, e);
             throw e;
         }
+    }
 
-        String realNickname = "Unknown";
+    public boolean deleteCustomTable(String tableId) {
         try {
-            Account account = accountService.findById(Long.parseLong(userId));
-            realNickname = account.getNickname();
-        } catch (Exception ignored) {
-
-        }
-
-        var statusEvent = new PlayerStatusEvent(
-                "PLAYER_STATUS",
-                tableId,
-                seatIndex,
-                "LEFT",
-                realNickname
-        );
-
-        Table table = tables.get(tableId);
-        if (table != null) {
-            table.bufferEvent(statusEvent);
-        }
-
-        eventPublisher.publishPlayerStatus(statusEvent);
-
-        unregisterPlayer(userId);
-
-        if (table != null) {
-            eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
-
-            if (table.getPlayerCount() <= 1) {
-                try {
-                    UUID uuid = UUID.fromString(tableId);
-                    tableRepository.findById(uuid).ifPresent(dbTable -> {
-
-                        if (!dbTable.getIsSystem()) {
-                            tables.remove(tableId);
-                            tableRepository.delete(dbTable);
-
-                            eventPublisher.publishLobbyUpdate(tableId, -1, table.getMaxPlayers());
-
-                            log.info("Custom table [{}] was destroyed because it became empty.", dbTable.getName());
-                        }
-                    });
-                } catch (Exception e) {
-                    log.error("Error trying to delete empty custom table: {}", tableId, e);
-                }
+            UUID uuid = UUID.fromString(tableId);
+            GameTable dbTable = tableRepository.findById(uuid).orElse(null);
+            if (dbTable == null || dbTable.getIsSystem()) {
+                return false;
             }
-
-            broadcastLobbyUpdate();
+            tables.remove(tableId);
+            tableRepository.delete(dbTable);
+            log.info("Custom table [{}] was destroyed because it became empty.", dbTable.getName());
+            return true;
+        } catch (Exception e) {
+            log.error("Error trying to delete empty custom table: {}", tableId, e);
+            return false;
         }
-    }
-
-    @Override
-    public void onPlayerJoin(String tableId, Player player) {
-        var statusEvent = new PlayerStatusEvent(
-                "PLAYER_STATUS",
-                tableId,
-                player.getSeatIndex(),
-                "JOINED",
-                player.getName()
-        );
-
-        Table table = tables.get(tableId);
-
-        if (table != null) {
-            table.bufferEvent(statusEvent);
-            eventPublisher.publishPlayerStatus(statusEvent);
-            eventPublisher.publishLobbyUpdate(tableId, table.getPlayerCount(), table.getMaxPlayers());
-        } else {
-            eventPublisher.publishPlayerStatus(statusEvent);
-        }
-
-        broadcastLobbyUpdate();
-    }
-
-    @Override
-    public void onStreetEnd(StreetEndDTO event) {
-        Table table = tables.get(event.tableId());
-        if (table != null) {
-            table.bufferEvent(event);
-        }
-        eventPublisher.publishStreetEnd(event);
     }
 
     public void forceKickPlayer(String userId) {
@@ -274,7 +168,7 @@ public class TableManager implements TableEventListener {
                 minBuyIn,
                 isPrivate,
                 hashedPasscode,
-                this,
+                tableEventService,
                 this.scheduler
         );
         tables.put(tableIdStr, newTable);
@@ -345,7 +239,7 @@ public class TableManager implements TableEventListener {
                     dbTable.getMinBuyIn(),
                     dbTable.getIsPrivate(),
                     dbTable.getPasscode(),
-                    this,
+                    tableEventService,
                     this.scheduler
             );
             tables.put(memoryTable.getId(), memoryTable);
@@ -383,16 +277,6 @@ public class TableManager implements TableEventListener {
         }
 
         log.info("Emergency refunds completed successfully.");
-    }
-
-    @Override
-    public void onHandFinished(List<String> playersInHand, Map<String, Long> winnersAndAmounts) {
-        for (String userId : playersInHand) {
-            boolean isWinner = winnersAndAmounts.containsKey(userId);
-            long amountWon = isWinner ? winnersAndAmounts.get(userId) : 0;
-
-            accountService.updatePlayerStats(userId, isWinner, amountWon);
-        }
     }
 
     public void broadcastLobbyUpdate() {
